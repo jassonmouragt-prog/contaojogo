@@ -2,7 +2,7 @@ import "server-only";
 import { and, arrayContains, asc, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
-  athletes, documents, heroSlides, newsPosts, nominationPolls, nominations, pollFinalists, rosterEntries, sponsorMetrics, sponsors, supportTickets, teams, ticketMessages, user,
+  athletes, documents, heroSlides, newsPosts, nominationPolls, nominations, pollFinalists, rosterEntries, sponsors, supportTickets, teams, ticketMessages, user,
 } from "@/db/schema";
 
 /** Patrocinadores ativos e dentro do período para uma posição. */
@@ -24,10 +24,10 @@ export function listSponsorsWithMetrics(org: string) {
     .select({
       id: sponsors.id, name: sponsors.name, logoUrl: sponsors.logoUrl, linkUrl: sponsors.linkUrl, active: sponsors.active,
       placements: sponsors.placements, durationSeconds: sponsors.durationSeconds, startsAt: sponsors.startsAt, endsAt: sponsors.endsAt,
-      impressions: sql<number>`coalesce((select sum(${sponsorMetrics.impressions}) from ${sponsorMetrics} where ${sponsorMetrics.sponsorId} = ${sponsors.id}),0)::int`,
-      clicks: sql<number>`coalesce((select sum(${sponsorMetrics.clicks}) from ${sponsorMetrics} where ${sponsorMetrics.sponsorId} = ${sponsors.id}),0)::int`,
-      impressions7d: sql<number>`coalesce((select sum(${sponsorMetrics.impressions}) from ${sponsorMetrics} where ${sponsorMetrics.sponsorId} = ${sponsors.id} and ${sponsorMetrics.day} >= current_date - 6),0)::int`,
-      clicks7d: sql<number>`coalesce((select sum(${sponsorMetrics.clicks}) from ${sponsorMetrics} where ${sponsorMetrics.sponsorId} = ${sponsors.id} and ${sponsorMetrics.day} >= current_date - 6),0)::int`,
+      impressions: sql<number>`coalesce((select sum(sm.impressions) from sponsor_metrics sm where sm.sponsor_id = "sponsors"."id"),0)::int`,
+      clicks: sql<number>`coalesce((select sum(sm.clicks) from sponsor_metrics sm where sm.sponsor_id = "sponsors"."id"),0)::int`,
+      impressions7d: sql<number>`coalesce((select sum(sm.impressions) from sponsor_metrics sm where sm.sponsor_id = "sponsors"."id" and sm.day >= current_date - 6),0)::int`,
+      clicks7d: sql<number>`coalesce((select sum(sm.clicks) from sponsor_metrics sm where sm.sponsor_id = "sponsors"."id" and sm.day >= current_date - 6),0)::int`,
     })
     .from(sponsors)
     .where(eq(sponsors.organizationId, org))

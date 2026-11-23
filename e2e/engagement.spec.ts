@@ -42,13 +42,14 @@ test.describe("Fase 8 — engajamento, patrocínio, conteúdo e suporte", () => 
 
     // --- Patrocínio: cadastro → exibição → clique contado
     await loginOwner(page, "/admin/patrocinadores");
+    await page.getByRole("button", { name: "Novo patrocinador" }).click();
     await page.getByLabel("Nome", { exact: true }).fill(`Laticínios ${tag}`);
     const photo = await bigPhoto();
     await page.locator('input[type="file"]').setInputFiles({ name: "logo.jpg", mimeType: "image/jpeg", buffer: photo });
-    await expect(page.getByText(/Imagem otimizada: .* → \d+ KB • 600×400/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/Imagem otimizada: .* → \d+ KB • 600×400/).first()).toBeVisible({ timeout: 30_000 });
     await page.getByLabel(/Link ao clicar/).fill("https://example.com/");
     await page.getByRole("button", { name: "Cadastrar patrocinador" }).click();
-    await expect(page.getByText("Patrocinador cadastrado.")).toBeVisible();
+    await expect(page.getByText("Patrocinador cadastrado.").first()).toBeVisible();
 
     const anon = await browser.newContext({ baseURL });
     const visitor = await anon.newPage();
@@ -73,13 +74,14 @@ test.describe("Fase 8 — engajamento, patrocínio, conteúdo e suporte", () => 
 
     // --- Banner do topo com imagem anexada
     await page.goto("/admin/banners");
-    await page.getByLabel("Título", { exact: true }).fill(`Final ${tag}`);
+    await page.getByRole("button", { name: "Novo banner" }).click();
+    await page.getByLabel("Título (opcional)", { exact: true }).fill(`Final ${tag}`);
     await page.locator('input[type="file"]').setInputFiles({ name: "banner.jpg", mimeType: "image/jpeg", buffer: photo });
-    await expect(page.getByText(/Imagem otimizada: .* • 1620×1080/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/Imagem otimizada: .* • 1620×1080/).first()).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: "Publicar banner" }).click();
-    await expect(page.getByText("Banner publicado.")).toBeVisible();
+    await expect(page.getByText("Banner publicado.").first()).toBeVisible();
     // formulário limpo para o próximo cadastro (inclusive a imagem anexada)
-    await expect(page.getByLabel("Título", { exact: true })).toHaveValue("");
+    await expect(page.getByRole("button", { name: "Novo banner" })).toBeVisible(); // painel fechou limpo
     await expect(page.getByAltText("Pré-visualização")).toHaveCount(0);
     await expect(page.getByText(/Imagem otimizada/)).toHaveCount(0);
     await visitor.goto("/");
@@ -88,13 +90,14 @@ test.describe("Fase 8 — engajamento, patrocínio, conteúdo e suporte", () => 
 
     // --- Conteúdo: notícia publicada aparece no portal
     await page.goto("/admin/conteudo");
+    await page.getByRole("button", { name: "Nova notícia" }).click();
     await page.getByLabel("Título", { exact: true }).first().fill(`Mulungu vence clássico ${tag}`);
     await page.getByLabel("Texto").fill("Com gol de Pedro Lima, o Mulungu venceu o Gaspar.");
     await page.getByRole("button", { name: "Salvar notícia" }).click();
-    await expect(page.getByText("Notícia salva.")).toBeVisible();
+    await expect(page.getByText("Notícia salva.").first()).toBeVisible();
     await visitor.goto("/noticias");
     await visitor.getByRole("link", { name: new RegExp(`Mulungu vence clássico ${tag}`) }).click();
-    await expect(visitor.getByText("Com gol de Pedro Lima")).toBeVisible();
+    await expect(visitor.getByText("Com gol de Pedro Lima").first()).toBeVisible();
 
     // --- Suporte: visitante abre chamado, equipe responde e resolve
     await visitor.goto("/suporte?tipo=MATCH_ERROR&pagina=/jogos/x");
@@ -102,7 +105,7 @@ test.describe("Fase 8 — engajamento, patrocínio, conteúdo e suporte", () => 
     await visitor.getByLabel("E-mail").fill("visitante@teste.contaojogo.club");
     await visitor.getByLabel("Mensagem").fill(`Placar errado no jogo ${tag}`);
     await visitor.getByRole("button", { name: "Abrir chamado" }).click();
-    await expect(visitor.getByText(/Chamado #\d{4} aberto/)).toBeVisible();
+    await expect(visitor.getByText(/Chamado #\d{4} aberto/).first()).toBeVisible();
     await page.goto("/admin/suporte");
     const ticket = page.locator("li", { hasText: `Placar errado no jogo ${tag}` });
     await expect(ticket).toContainText("Erro em jogo");
@@ -114,9 +117,10 @@ test.describe("Fase 8 — engajamento, patrocínio, conteúdo e suporte", () => 
 
     // --- Indicações: torcedores indicam, admin escolhe 3 finalistas
     await page.goto("/admin/indicacoes");
+    await page.getByRole("button", { name: "Nova indicação" }).click();
     await page.getByLabel("Título").fill(`Craque ${tag}`);
     await page.getByRole("button", { name: "Abrir indicações" }).click();
-    await expect(page.getByText("Indicações abertas.")).toBeVisible();
+    await expect(page.getByText("Indicações abertas.").first()).toBeVisible();
 
     for (let i = 1; i <= 3; i++) {
       const f = await fan(browser, baseURL!, tag, i);
@@ -137,7 +141,7 @@ test.describe("Fase 8 — engajamento, patrocínio, conteúdo e suporte", () => 
     const panel = page.locator("section", { hasText: `Craque ${tag}` });
     await panel.getByLabel("Link da votação no Instagram").fill("https://www.instagram.com/contaojogo/");
     await panel.getByRole("button", { name: "Publicar finalistas" }).click();
-    await expect(page.getByText("Finalistas definidos e publicados.")).toBeVisible();
+    await expect(page.getByText("Finalistas definidos e publicados.").first()).toBeVisible();
 
     await visitor.goto("/indicacoes");
     const pub = visitor.locator("section", { hasText: `Craque ${tag}` });

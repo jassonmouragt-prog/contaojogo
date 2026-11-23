@@ -16,10 +16,10 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
   const squad = await listTeamAthletes(team.id);
   return (
     <>
-      <PageHeader title={team.name} description={team.city ?? undefined} />
+      <PageHeader back={{ href: "/admin/equipes", label: "Equipes" }} title={team.name} description={team.city ?? undefined} />
       <div className="grid gap-4">
         <Panel title="Dados da equipe"><TeamForm values={team} /></Panel>
-        <Panel title={`Elenco (${squad.filter((a) => a.active).length} ativos)`}>
+        <Panel title={`Elenco • ${squad.filter((a) => a.active).length} atletas ativos`}>
           <AthleteForm teamId={team.id} />
           {squad.length > 0 && (
             <ul className="mt-4 divide-y text-sm">

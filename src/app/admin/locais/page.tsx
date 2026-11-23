@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Panel } from "@/components/admin/fields";
+import { CreatePanel } from "@/components/admin/create-panel";
 import { VenueForm } from "@/components/admin/forms/team-forms";
 import { PageHeader } from "@/components/admin/page-header";
 import { listVenues } from "@/domain/competitions/queries";
@@ -25,7 +26,7 @@ export default function Page() {
     <>
       <PageHeader title="Locais" description="Arenas e campos usados na agenda." />
       <div className="grid gap-4">
-        <Panel title="Novo local"><VenueForm /></Panel>
+        <CreatePanel label="Novo local"><VenueForm /></CreatePanel>
         <Panel title="Cadastrados"><Suspense fallback={<div className="h-16 animate-pulse rounded bg-muted" />}><List /></Suspense></Panel>
       </div>
     </>

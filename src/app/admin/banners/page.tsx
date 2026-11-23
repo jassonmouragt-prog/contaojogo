@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Panel } from "@/components/admin/fields";
+import { CreatePanel } from "@/components/admin/create-panel";
 import { HeroRowActions, HeroSlideForm } from "@/components/admin/forms/hero-forms";
 import { PageHeader } from "@/components/admin/page-header";
 import { listHeroSlides, listSponsorsWithMetrics } from "@/domain/engagement/queries";
@@ -14,7 +15,7 @@ async function Banners() {
   const [rows, sp] = await Promise.all([listHeroSlides(org), listSponsorsWithMetrics(org)]);
   return (
     <div className="grid gap-4">
-      <Panel title="Novo banner"><HeroSlideForm sponsors={sp.map((s) => ({ value: s.id, label: s.name }))} /></Panel>
+      <CreatePanel label="Novo banner"><HeroSlideForm sponsors={sp.map((s) => ({ value: s.id, label: s.name }))} /></CreatePanel>
       <Panel title="Ordem de exibição">
         <p className="mb-3 text-xs text-muted-foreground">O banner automático “Jogos de hoje” entra sozinho quando há partidas no dia (e vai para o início se houver jogo ao vivo).</p>
         {rows.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum banner. Sem banners, o topo mostra a vitrine da marca.</p> : (

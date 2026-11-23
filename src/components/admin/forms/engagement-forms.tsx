@@ -38,7 +38,7 @@ export function SponsorRowActions({ id, active }: { id: string; active: boolean 
   return (
     <div className="flex gap-1">
       {(["up", "down", "toggle"] as const).map((op) => (
-        <ActionForm key={op} action={updateSponsor}>
+        <ActionForm key={op} action={updateSponsor} compact>
           {(pending) => (
             <>
               <input type="hidden" name="id" value={id} /><input type="hidden" name="op" value={op} />
@@ -78,7 +78,7 @@ export function NewsForm({ competitions }: { competitions: Opt[] }) {
 
 export function NewsToggle({ id, published }: { id: string; published: boolean }) {
   return (
-    <ActionForm action={toggleNews}>
+    <ActionForm action={toggleNews} compact>
       {(pending) => (<><input type="hidden" name="id" value={id} /><button disabled={pending} className={small}>{published ? "Despublicar" : "Publicar"}</button></>)}
     </ActionForm>
   );
@@ -132,7 +132,7 @@ export function FinalistsForm({ pollId, options, instagramUrl }: { pollId: strin
 
 export function HideNominationButton({ id }: { id: string }) {
   return (
-    <ActionForm action={hideNomination}>
+    <ActionForm action={hideNomination} compact>
       {(pending) => (<><input type="hidden" name="id" value={id} /><button disabled={pending} className={small}>Remover</button></>)}
     </ActionForm>
   );

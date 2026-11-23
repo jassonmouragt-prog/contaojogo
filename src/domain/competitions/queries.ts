@@ -8,7 +8,6 @@ import {
   competitionTeams,
   competitions,
   matches,
-  rosterEntries,
   teams,
   venues,
 } from "@/db/schema";
@@ -101,8 +100,8 @@ export async function listCompetitions(opts: { organizationId?: string | null; p
       status: competitions.status,
       city: competitions.city,
       published: competitions.published,
-      teamCount: sql<number>`(select count(*)::int from ${competitionTeams} where ${competitionTeams.competitionId} = ${competitions.id})`,
-      currentPhase: sql<string | null>`(select ${competitionPhases.name} from ${competitionPhases} where ${competitionPhases.competitionId} = ${competitions.id} order by ${competitionPhases.sortOrder} desc limit 1)`,
+      teamCount: sql<number>`(select count(*)::int from competition_teams ct where ct.competition_id = "competitions"."id")`,
+      currentPhase: sql<string | null>`(select cp.name from competition_phases cp where cp.competition_id = "competitions"."id" order by cp.sort_order desc limit 1)`,
     })
     .from(competitions)
     .where(f.length ? and(...f) : undefined)
@@ -136,7 +135,7 @@ export async function getCompetitionStructure(competitionId: string) {
         slug: teams.slug,
         crestUrl: teams.crestUrl,
         groupId: competitionTeams.groupId,
-        athletes: sql<number>`(select count(*)::int from ${rosterEntries} where ${rosterEntries.competitionId} = ${competitionId} and ${rosterEntries.teamId} = ${teams.id})`,
+        athletes: sql<number>`(select count(*)::int from roster_entries re where re.competition_id = ${competitionId} and re.team_id = "teams"."id")`,
       })
       .from(competitionTeams)
       .innerJoin(teams, eq(teams.id, competitionTeams.teamId))
@@ -168,7 +167,7 @@ export async function listTeams(organizationId: string | null) {
       city: teams.city,
       crestUrl: teams.crestUrl,
       active: teams.active,
-      athletes: sql<number>`(select count(*)::int from ${athletes} where ${athletes.teamId} = ${teams.id} and ${athletes.active})`,
+      athletes: sql<number>`(select count(*)::int from athletes a where a.team_id = "teams"."id" and a.active)`,
     })
     .from(teams)
     .where(organizationId ? eq(teams.organizationId, organizationId) : undefined)

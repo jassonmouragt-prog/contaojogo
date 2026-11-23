@@ -59,10 +59,10 @@ const competitionSchema = z.object({
   status: z.enum(COMPETITION_STATUSES).optional(),
   city: z.string().max(80).optional(),
   description: z.string().max(2000).optional(),
-  periodMinutes: z.coerce.number().int().min(5, "Mínimo 5 minutos.").max(60, "Máximo 60 minutos."),
-  pointsWin: z.coerce.number().int().min(0).max(10),
-  pointsDraw: z.coerce.number().int().min(0).max(10),
-  pointsLoss: z.coerce.number().int().min(0).max(10),
+  periodMinutes: z.coerce.number().int().min(5, "Mínimo 5 minutos.").max(60, "Máximo 60 minutos.").optional(),
+  pointsWin: z.coerce.number().int().min(0).max(10).optional(),
+  pointsDraw: z.coerce.number().int().min(0).max(10).optional(),
+  pointsLoss: z.coerce.number().int().min(0).max(10).optional(),
   published: z.enum(["true", "false"]).optional(),
 });
 
@@ -74,6 +74,9 @@ export async function saveCompetition(_p: ActionResult, fd: FormData): Promise<A
   const { id, published, ...d } = parsed.data;
   const values = {
     ...d,
+    // Novo cadastro: tempo padrão pela modalidade e pontuação 3/1/0 (ajustáveis no Regulamento).
+    periodMinutes: d.periodMinutes ?? (d.modality === "FUTSAL" ? 20 : 45),
+    ...(id ? {} : { pointsWin: d.pointsWin ?? 3, pointsDraw: d.pointsDraw ?? 1, pointsLoss: d.pointsLoss ?? 0 }),
     city: d.city ?? null,
     description: d.description ?? null,
     slug: slugify(`${d.name}`),
@@ -86,13 +89,13 @@ export async function saveCompetition(_p: ActionResult, fd: FormData): Promise<A
         if (!before) return fail("Competição não encontrada.");
         await tx.update(competitions).set(values).where(eq(competitions.id, id));
         await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "competition.updated", entityType: "competition", entityId: id, before: { name: before.name, status: before.status, published: before.published, periodMinutes: before.periodMinutes }, after: { name: values.name, status: values.status, published: values.published, periodMinutes: values.periodMinutes }, ipAddress: await clientIp() });
-        return { ok: true, message: "Competição salva.", id };
+        return { ok: true, message: "Alterações salvas.", id };
       }
       const [row] = await tx.insert(competitions).values({ ...values, organizationId: org }).returning({ id: competitions.id });
       // Fase inicial padrão para que a competição já possa receber equipes e jogos.
       await tx.insert(competitionPhases).values({ competitionId: row.id, name: "Fase de grupos", type: "GROUPS", sortOrder: 1 });
       await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "competition.created", entityType: "competition", entityId: row.id, after: { name: values.name, season: values.season }, ipAddress: await clientIp() });
-      return { ok: true, message: "Competição criada.", id: row.id };
+      return { ok: true, message: "Competição criada. Agora inscreva as equipes.", id: row.id };
     });
     if (result?.id) revalidateCompetition(result.id);
     return result;
@@ -319,5 +322,23 @@ export async function setMatchScheduleStatus(_p: ActionResult, fd: FormData): Pr
   if (res?.id) revalidateCompetition(res.id);
   if (res?.ok) void publishMatchUpdate(parsed.data.matchId, Date.now());
   revalidatePath("/admin/jogos");
+  return res;
+}
+
+/** Publica ou retira a competição do site com um clique. */
+export async function togglePublished(_p: ActionResult, fd: FormData): Promise<ActionResult> {
+  const actor = await authorizeAction("competition.manage");
+  const org = requireOrg(actor);
+  const id = z.uuid().safeParse(fd.get("id"));
+  if (!id.success) return fail("Dados inválidos.");
+  const res = await getDb().transaction(async (tx) => {
+    const c = await loadCompetition(tx, id.data, org);
+    if (!c) return fail("Competição não encontrada.");
+    const published = !c.published;
+    await tx.update(competitions).set({ published, ...(published && c.status === "DRAFT" ? { status: "ONGOING" as const } : {}) }).where(eq(competitions.id, c.id));
+    await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "competition.updated", entityType: "competition", entityId: c.id, before: { published: c.published }, after: { published } });
+    return { ok: true, message: published ? "Competição publicada no site." : "Competição retirada do site.", id: c.id };
+  });
+  if (res?.id) revalidateCompetition(res.id);
   return res;
 }

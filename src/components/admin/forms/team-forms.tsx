@@ -42,7 +42,7 @@ export function AthleteForm({ teamId }: { teamId: string }) {
 
 export function AthleteActiveToggle({ athlete }: { athlete: { id: string; active: boolean } }) {
   return (
-    <ActionForm action={setAthleteActive}>
+    <ActionForm action={setAthleteActive} compact>
       {(pending) => (
         <>
           <input type="hidden" name="id" value={athlete.id} />

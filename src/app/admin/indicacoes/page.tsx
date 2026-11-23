@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Panel } from "@/components/admin/fields";
+import { CreatePanel } from "@/components/admin/create-panel";
 import { FinalistsForm, HideNominationButton, PollForm } from "@/components/admin/forms/engagement-forms";
 import { PageHeader } from "@/components/admin/page-header";
 import { listCompetitions } from "@/domain/competitions/queries";
@@ -14,7 +15,7 @@ async function Polls() {
   const [comps, polls] = await Promise.all([listCompetitions({ organizationId: org }), listPolls(org)]);
   return (
     <div className="grid gap-4">
-      <Panel title="Nova indicação"><PollForm competitions={comps.map((c) => ({ value: c.id, label: c.name }))} /></Panel>
+      <CreatePanel label="Nova indicação"><PollForm competitions={comps.map((c) => ({ value: c.id, label: c.name }))} /></CreatePanel>
       {await Promise.all(polls.map(async (p) => {
         const [tally, recent, fin] = await Promise.all([nominationTally(p.id), recentNominations(p.id), finalists(p.id)]);
         return (

@@ -23,7 +23,7 @@ export function UserRowActions({
   return (
     <div className="flex flex-wrap items-start gap-2">
       {assignableRoles.length > 0 && (
-        <ActionForm action={changeUserRole} className="flex flex-col">
+        <ActionForm action={changeUserRole} compact className="flex flex-col">
           {(pending) => (
             <div className="flex gap-1.5">
               <input type="hidden" name="userId" value={userId} />
@@ -48,7 +48,7 @@ export function UserRowActions({
         </ActionForm>
       )}
       {canBan && (
-        <ActionForm action={setUserBanned} className="flex flex-col">
+        <ActionForm action={setUserBanned} compact className="flex flex-col">
           {(pending) => (
             <>
               <input type="hidden" name="userId" value={userId} />

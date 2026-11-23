@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Panel } from "@/components/admin/fields";
+import { CreatePanel } from "@/components/admin/create-panel";
 import { DocumentForm, NewsForm, NewsToggle } from "@/components/admin/forms/engagement-forms";
 import { PageHeader } from "@/components/admin/page-header";
 import { listCompetitions } from "@/domain/competitions/queries";
@@ -16,7 +17,9 @@ async function Content() {
   const opts = comps.map((c) => ({ value: c.id, label: c.name }));
   return (
     <div className="grid gap-4">
-      <Panel title="Nova notícia"><NewsForm competitions={opts} /></Panel>
+      <div className="flex flex-wrap gap-3">
+        <CreatePanel label="Nova notícia"><NewsForm competitions={opts} /></CreatePanel>
+      </div>
       <Panel title="Notícias">
         {news.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma notícia.</p> : (
           <ul className="divide-y text-sm">{news.map((n) => (
@@ -28,7 +31,7 @@ async function Content() {
         )}
       </Panel>
       <Panel title="Documentos (regulamentos, súmulas, comunicados)">
-        <DocumentForm competitions={opts} />
+        <CreatePanel label="Novo documento"><DocumentForm competitions={opts} /></CreatePanel>
         {docs.length > 0 && <ul className="mt-3 divide-y text-sm">{docs.map((d) => <li key={d.id} className="py-2"><a href={d.url} target="_blank" rel="noopener" className="font-semibold hover:text-brand-amber">{d.title}</a></li>)}</ul>}
       </Panel>
     </div>

@@ -85,7 +85,7 @@ export function MatchStatusActions({ matchId, status }: { matchId: string; statu
   return (
     <div className="flex gap-1">
       {options.map((o) => (
-        <ActionForm key={o.to} action={setMatchScheduleStatus}>
+        <ActionForm key={o.to} action={setMatchScheduleStatus} compact>
           {(pending) => (
             <>
               <input type="hidden" name="matchId" value={matchId} />

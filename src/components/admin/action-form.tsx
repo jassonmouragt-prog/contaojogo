@@ -2,13 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { startTransition, useActionState, useLayoutEffect, useRef } from "react";
+import { toast } from "sonner";
+import { useCloseCreate } from "@/components/admin/create-panel";
 import type { ActionResult } from "@/domain/users/actions";
 import { cn } from "@/lib/utils";
 
 /**
- * Formulário com server action + mensagem acessível.
- * - `resetOnSuccess`: limpa os campos após sucesso (cadastros em sequência).
- * - `redirectTo`: navega após sucesso usando o id retornado.
+ * Formulário com server action.
+ * - mostra o resultado como notificação (toast) e também abaixo do botão;
+ * - `resetOnSuccess`: limpa os campos (e imagens anexadas) após salvar;
+ * - `redirectTo`: navega após sucesso usando o id retornado (":id");
+ * - `onSuccess`: callback (ex.: fechar o painel de cadastro).
  */
 export function ActionForm({
   action,
@@ -16,26 +20,37 @@ export function ActionForm({
   className,
   resetOnSuccess = false,
   redirectTo,
+  onSuccess,
+  quiet = false,
+  compact = false,
 }: {
   action: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
   children: (pending: boolean) => React.ReactNode;
   className?: string;
   resetOnSuccess?: boolean;
   redirectTo?: string;
+  onSuccess?: (result: NonNullable<ActionResult>) => void;
+  /** Sem notificação (botões pequenos de lista). */
+  quiet?: boolean;
+  /** Só notificação, sem texto abaixo (botões em linha). */
+  compact?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   const ref = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const handled = useRef<ActionResult>(null);
+  const closePanel = useCloseCreate();
 
-  // Layout effect: limpa antes da próxima pintura, sem apagar o que a pessoa já começou a digitar.
   useLayoutEffect(() => {
     // Cada resposta é tratada uma única vez (o efeito re-executa em refresh da rota).
-    if (!state?.ok || handled.current === state) return;
+    if (!state || handled.current === state) return;
     handled.current = state;
-    if (resetOnSuccess) ref.current?.reset();
+    if (!quiet || !state.ok) (state.ok ? toast.success : toast.error)(state.message);
+    if (!state.ok) return;
+    if (resetOnSuccess) { ref.current?.reset(); if (!redirectTo) closePanel(); }
+    onSuccess?.(state);
     if (redirectTo && state.id) router.push(redirectTo.replace(":id", state.id));
-  }, [state, resetOnSuccess, redirectTo, router]);
+  }, [state, resetOnSuccess, redirectTo, router, onSuccess, quiet, closePanel]);
 
   return (
     <form
@@ -49,7 +64,7 @@ export function ActionForm({
       className={className}
     >
       {children(pending)}
-      {state && (
+      {state && !quiet && !compact && (
         <p role="status" className={cn("mt-2 text-xs", state.ok ? "text-brand-green" : "text-destructive")}>
           {state.message}
         </p>

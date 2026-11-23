@@ -4,7 +4,7 @@ import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 const PICKER_TYPES = new Set(["date", "datetime-local", "time"]);
-const control = "h-10 w-full rounded-lg border bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring";
+const control = "h-11 w-full rounded-xl border border-input bg-background px-3.5 text-sm transition-colors placeholder:text-muted-foreground/60 hover:border-foreground/20 focus-visible:border-brand-amber focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-amber/30";
 
 export function Field({ label, htmlFor, children, className, hint }: { label: string; htmlFor: string; children: React.ReactNode; className?: string; hint?: string }) {
   return (
@@ -53,7 +53,7 @@ export function SelectInput({ label, name, options, className, placeholder, ...p
 
 export function SubmitButton({ pending, children }: { pending: boolean; children: React.ReactNode }) {
   return (
-    <button disabled={pending} className="h-10 rounded-lg bg-brand-amber px-4 text-sm font-bold text-black transition-opacity disabled:opacity-50">
+    <button disabled={pending} className="h-11 rounded-xl bg-brand-amber px-5 text-sm font-bold text-black transition-all hover:brightness-110 disabled:opacity-50">
       {pending ? "Salvando…" : children}
     </button>
   );
@@ -61,12 +61,12 @@ export function SubmitButton({ pending, children }: { pending: boolean; children
 
 export function Panel({ title, children, className, action }: { title: string; children: React.ReactNode; className?: string; action?: React.ReactNode }) {
   return (
-    <section className={cn("overflow-hidden rounded-xl border bg-card", className)}>
-      <div className="flex items-center justify-between gap-2 bg-surface-2 px-4 py-2">
-        <h2 className="text-xs font-bold uppercase tracking-wide">{title}</h2>
+    <section className={cn("overflow-hidden rounded-2xl border bg-card", className)}>
+      <div className="flex items-center justify-between gap-2 border-b px-5 py-3">
+        <h2 className="text-sm font-bold">{title}</h2>
         {action}
       </div>
-      <div className="p-4">{children}</div>
+      <div className="p-5">{children}</div>
     </section>
   );
 }

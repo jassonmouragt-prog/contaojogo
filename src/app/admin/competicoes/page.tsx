@@ -1,32 +1,33 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { Panel } from "@/components/admin/fields";
-import { CompetitionForm } from "@/components/admin/forms/competition-form";
-import { PageHeader } from "@/components/admin/page-header";
+import { CreatePanel } from "@/components/admin/create-panel";
+import { CompetitionCreateForm } from "@/components/admin/forms/competition-form";
+import { EmptyState, PageHeader } from "@/components/admin/page-header";
+import { TeamCrest } from "@/components/brand/team-crest";
 import { listCompetitions } from "@/domain/competitions/queries";
 import { COMPETITION_STATUS_LABEL, MODALITY_LABEL } from "@/domain/labels";
 import { requirePermission } from "@/lib/auth/session";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Competições" };
 
 async function List() {
   const actor = await requirePermission("competition.manage", "/admin/competicoes");
   const rows = await listCompetitions({ organizationId: actor.organizationId });
-  if (rows.length === 0) return <p className="text-sm text-muted-foreground">Nenhuma competição cadastrada.</p>;
+  if (rows.length === 0) return <EmptyState title="Nenhuma competição ainda" text="Crie a primeira competição pelo botão acima. Depois você inscreve as equipes e agenda os jogos." />;
   return (
-    <ul className="divide-y">
+    <ul className="grid gap-3 md:grid-cols-2">
       {rows.map((c) => (
         <li key={c.id}>
-          <Link href={`/admin/competicoes/${c.id}`} className="flex items-center justify-between gap-3 py-3 hover:text-brand-amber">
-            <span className="min-w-0">
-              <span className="block truncate font-semibold">{c.name} <span className="text-muted-foreground">{c.season}</span></span>
-              <span className="block text-xs text-muted-foreground">
-                {MODALITY_LABEL[c.modality]} • {c.teamCount} equipes{c.currentPhase ? ` • ${c.currentPhase}` : ""}
-              </span>
+          <Link href={`/admin/competicoes/${c.id}`} className="flex items-center gap-4 rounded-2xl border bg-card p-4 transition-colors hover:border-brand-amber/50">
+            <TeamCrest name={c.name} size={44} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-display text-lg font-bold uppercase">{c.name} <span className="text-muted-foreground">{c.season}</span></span>
+              <span className="block text-xs text-muted-foreground">{MODALITY_LABEL[c.modality]} • {c.teamCount} equipes{c.currentPhase ? ` • ${c.currentPhase}` : ""}</span>
             </span>
-            <span className="shrink-0 text-right text-xs">
-              <span className="block font-semibold">{COMPETITION_STATUS_LABEL[c.status]}</span>
-              <span className={c.published ? "text-brand-green" : "text-muted-foreground"}>{c.published ? "Publicada" : "Não publicada"}</span>
+            <span className="flex flex-col items-end gap-1">
+              <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase", c.published ? "bg-brand-green/15 text-brand-green" : "bg-muted text-muted-foreground")}>{c.published ? "No site" : "Rascunho"}</span>
+              <span className="text-[11px] text-muted-foreground">{COMPETITION_STATUS_LABEL[c.status]}</span>
             </span>
           </Link>
         </li>
@@ -38,12 +39,10 @@ async function List() {
 export default function Page() {
   return (
     <>
-      <PageHeader title="Competições" description="Campeonatos, regras, fases, inscrições e agenda." />
-      <div className="grid gap-4">
-        <Panel title="Nova competição"><CompetitionForm /></Panel>
-        <Panel title="Cadastradas">
-          <Suspense fallback={<div className="h-20 animate-pulse rounded bg-muted" />}><List /></Suspense>
-        </Panel>
+      <PageHeader title="Competições" description="Campeonatos, inscrições, grupos e tabela de jogos." />
+      <div className="space-y-5">
+        <CreatePanel label="Nova competição"><CompetitionCreateForm /></CreatePanel>
+        <Suspense fallback={<div className="h-28 animate-pulse rounded-2xl bg-card" />}><List /></Suspense>
       </div>
     </>
   );

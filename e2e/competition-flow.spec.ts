@@ -28,31 +28,38 @@ test.describe("cadastro de competição e agenda", () => {
 
     for (const [team, player, shirt] of [[home, "Pedro Lima", "9"], [away, "Ryan", "10"], [third, "Carlos", "5"]] as const) {
       await page.goto("/admin/equipes");
+      await page.getByRole("button", { name: "Nova equipe" }).click();
       await page.getByLabel("Nome da equipe").fill(team);
       await page.getByRole("button", { name: "Cadastrar" }).click();
       await page.waitForURL(/\/admin\/equipes\/[0-9a-f-]{36}$/);
       await page.getByLabel("Nome do atleta").fill(player);
       await page.getByLabel("Camisa").fill(shirt);
       await page.getByRole("button", { name: "Adicionar" }).click();
-      await expect(page.getByText("Atleta cadastrado.")).toBeVisible();
+      await expect(page.getByText("Atleta cadastrado.").first()).toBeVisible();
     }
 
     await page.goto("/admin/locais");
+    await page.getByRole("button", { name: "Novo local" }).click();
     await page.getByLabel("Nome do local").fill(`Arena ${tag}`);
     await page.getByRole("button", { name: "Cadastrar" }).click();
-    await expect(page.getByText("Local cadastrado.")).toBeVisible();
+    await expect(page.getByText("Local cadastrado.").first()).toBeVisible();
 
     await page.goto("/admin/competicoes");
-    await page.getByLabel("Nome").fill(compName);
+    await page.getByRole("button", { name: "Nova competição" }).click();
+    await page.getByLabel("Nome da competição").fill(compName);
     await page.getByRole("button", { name: "Criar competição" }).click();
     await page.waitForURL(/\/admin\/competicoes\/[0-9a-f-]{36}$/);
+    const compUrl = page.url();
+    await expect(page.getByText("1. Inscrever as equipes").first()).toBeVisible();
+    await page.goto(`${compUrl}?aba=equipes`);
 
     for (const team of [home, away, third]) {
       await page.getByLabel("Equipe", { exact: true }).selectOption({ label: team });
       await page.getByRole("button", { name: "Inscrever com elenco" }).click();
-      await expect(page.getByText(`${team} inscrita com 1 atleta(s).`)).toBeVisible();
+      await expect(page.getByText(`${team} inscrita com 1 atleta(s).`).first()).toBeVisible();
     }
 
+    await page.goto(`${compUrl}?aba=jogos`);
     const when = new Date(Date.now() + 60 * 60_000 - 3 * 3_600_000).toISOString().slice(0, 16);
     const schedule = async (h: string, a: string) => {
       await page.getByLabel("Mandante").selectOption({ label: h });
@@ -62,23 +69,21 @@ test.describe("cadastro de competição e agenda", () => {
       await page.getByRole("button", { name: "Agendar jogo" }).click();
     };
     await schedule(home, away);
-    await expect(page.getByText("Jogo agendado.")).toBeVisible();
+    await expect(page.getByText("Jogo agendado.").first()).toBeVisible();
     await schedule(third, home); // formulário mantém data e local
-    await expect(page.getByText(/Conflito: uma das equipes já joga/)).toBeVisible();
+    await expect(page.getByText(/Conflito: uma das equipes já joga/).first()).toBeVisible();
 
     const draft = await page.request.get("/campeonatos");
     expect(await draft.text()).not.toContain(compName);
 
-    await page.getByLabel("Situação").selectOption("ONGOING");
-    await page.getByLabel("Visível no site").selectOption("true");
-    await page.getByRole("button", { name: "Salvar alterações" }).click();
-    await expect(page.getByText("Competição salva.")).toBeVisible();
+    await page.getByRole("button", { name: "Publicar no site" }).click();
+    await expect(page.getByText("Competição publicada no site.").first()).toBeVisible();
 
     await page.goto("/");
     await expect(page.getByText(compName).first()).toBeVisible();
     await page.getByRole("link", { name: new RegExp(home) }).first().click();
-    await expect(page.getByText("Em breve")).toBeVisible();
-    await expect(page.getByText(`Arena ${tag}`)).toBeVisible();
+    await expect(page.getByText("Em breve").first()).toBeVisible();
+    await expect(page.getByText(`Arena ${tag}`).first()).toBeVisible();
 
     await page.goto("/campeonatos");
     await page.getByRole("link", { name: new RegExp(compName) }).click();
@@ -86,7 +91,7 @@ test.describe("cadastro de competição e agenda", () => {
     await page.getByRole("link", { name: "Equipes", exact: true }).click();
     await page.getByRole("link", { name: new RegExp(`^${away}`) }).last().click();
     await page.waitForURL(/\/equipes\//);
-    await expect(page.getByText("Ryan")).toBeVisible();
+    await expect(page.getByText("Ryan").first()).toBeVisible();
 
     // ===== Fase 4 — MVP: operador conduz a partida =====
     await page.goto("/admin/jogos");
@@ -110,7 +115,7 @@ test.describe("cadastro de competição e agenda", () => {
     await page.getByLabel("Minuto").fill("18");
     await page.getByRole("button", { name: "Registrar" }).click();
     await ok("Evento registrado.");
-    await expect(page.getByText("1 - 0")).toBeVisible();
+    await expect(page.getByText("1 - 0").first()).toBeVisible();
 
     // Atualização automática (polling 5s sem Ably / instantânea com Ably)
     await expect(pub.getByText("1 - 0")).toBeVisible({ timeout: 20_000 });
@@ -130,9 +135,9 @@ test.describe("cadastro de competição e agenda", () => {
     await page.getByLabel("Atleta").selectOption({ label: "9 • Pedro Lima" });
     await page.getByLabel("Minuto").fill("30");
     await page.getByRole("button", { name: "Registrar" }).click();
-    await expect(page.getByText(/Sem internet/)).toBeVisible();
-    await expect(page.getByText("PENDENTE")).toBeVisible();
-    await expect(page.getByText(/1 lançamento\(s\) aguardando envio/)).toBeVisible();
+    await expect(page.getByText(/Sem internet/).first()).toBeVisible();
+    await expect(page.getByText("PENDENTE").first()).toBeVisible();
+    await expect(page.getByText(/1 lançamento\(s\) aguardando envio/).first()).toBeVisible();
     // Recarregar sem internet não é possível; a fila fica no IndexedDB. Volta a conexão:
     await page.context().setOffline(false);
     await expect(page.getByText("PENDENTE")).toHaveCount(0, { timeout: 20_000 });

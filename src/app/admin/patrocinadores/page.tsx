@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Panel } from "@/components/admin/fields";
+import { CreatePanel } from "@/components/admin/create-panel";
 import { SponsorForm, SponsorRowActions } from "@/components/admin/forms/engagement-forms";
 import { PageHeader } from "@/components/admin/page-header";
 import { listSponsorsWithMetrics } from "@/domain/engagement/queries";
@@ -43,7 +44,7 @@ export default function Page() {
     <>
       <PageHeader title="Patrocinadores" description="Banners rotativos (padrão 4s) com relatório de visualizações e cliques." />
       <div className="grid gap-4">
-        <Panel title="Novo patrocinador"><SponsorForm /></Panel>
+        <CreatePanel label="Novo patrocinador"><SponsorForm /></CreatePanel>
         <Panel title="Banners e relatório"><Suspense fallback={<div className="h-20 animate-pulse rounded bg-muted" />}><List /></Suspense></Panel>
       </div>
     </>

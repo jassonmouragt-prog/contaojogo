@@ -42,7 +42,7 @@ export function HeroRowActions({ id, active }: { id: string; active: boolean }) 
   return (
     <div className="flex gap-1">
       {(["up", "down", "toggle"] as const).map((op) => (
-        <ActionForm key={op} action={updateHeroSlide}>
+        <ActionForm key={op} action={updateHeroSlide} compact>
           {(pending) => (
             <>
               <input type="hidden" name="id" value={id} /><input type="hidden" name="op" value={op} />
