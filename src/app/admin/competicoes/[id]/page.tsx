@@ -10,6 +10,7 @@ import { TeamCrest } from "@/components/brand/team-crest";
 import { getCompetitionBy, getCompetitionStructure, listCompetitionMatches, listTeams, listVenues } from "@/domain/competitions/queries";
 import { MATCH_STATUS_LABEL, MODALITY_LABEL, PHASE_TYPE_LABEL } from "@/domain/labels";
 import { requirePermission } from "@/lib/auth/session";
+import { getScorersBy } from "@/domain/standings/queries";
 import { formatDateTime } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ const TABS = [
   { key: "resumo", label: "Resumo" },
   { key: "equipes", label: "Equipes e grupos" },
   { key: "jogos", label: "Jogos" },
+  { key: "artilharia", label: "Artilharia" },
   { key: "regulamento", label: "Regulamento" },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
@@ -156,6 +158,8 @@ async function Detail({ params, searchParams }: { params: Promise<{ id: string }
         </div>
       )}
 
+      {tab === "artilharia" && <ScorersAdmin competitionId={comp.id} />}
+
       {tab === "regulamento" && <Panel title="Regulamento e configurações"><CompetitionRulesForm key={comp.updatedAt.toISOString()} values={comp} /></Panel>}
     </>
   );
@@ -166,5 +170,35 @@ export default function Page(props: PageProps<"/admin/competicoes/[id]">) {
     <Suspense fallback={<div className="h-60 animate-pulse rounded-2xl bg-card" />}>
       <Detail params={props.params} searchParams={props.searchParams as Promise<{ aba?: string }>} />
     </Suspense>
+  );
+}
+
+async function ScorersAdmin({ competitionId }: { competitionId: string }) {
+  const rows = await getScorersBy({ competitionId, includeUnconfirmed: true });
+  if (rows.length === 0) return <EmptyState title="Nenhum gol registrado" text="Os gols lançados na operação das partidas aparecem aqui automaticamente." />;
+  const pending = rows.some((r) => r.pending > 0);
+  return (
+    <Panel title="Artilharia da competição">
+      {pending && <p className="mb-3 rounded-xl bg-brand-amber/10 px-3 py-2 text-xs text-brand-amber">Gols “a confirmar” são de jogos ainda não confirmados. Eles entram no ranking oficial do site quando você confirmar o resultado.</p>}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] text-sm">
+          <thead className="text-[11px] uppercase text-muted-foreground">
+            <tr className="border-b"><th className="w-10 py-2 text-left">#</th><th className="py-2 text-left">Atleta</th><th className="py-2 text-left">Equipe</th><th className="py-2 text-center">Gols</th><th className="py-2 text-center">A confirmar</th><th className="py-2 text-center">Assist.</th></tr>
+          </thead>
+          <tbody className="divide-y">
+            {rows.map((r, i) => (
+              <tr key={r.athleteId}>
+                <td className="py-2 font-mono text-muted-foreground">{i + 1}</td>
+                <td className="py-2 font-semibold">{r.shirtNumber != null && <span className="mr-1.5 font-mono text-xs text-brand-amber">{r.shirtNumber}</span>}{r.name}</td>
+                <td className="py-2 text-muted-foreground">{r.teamName}</td>
+                <td className="py-2 text-center font-mono text-lg font-bold text-brand-amber">{r.goals}</td>
+                <td className="py-2 text-center font-mono text-muted-foreground">{r.pending || "–"}</td>
+                <td className="py-2 text-center font-mono">{r.assists || "–"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
   );
 }

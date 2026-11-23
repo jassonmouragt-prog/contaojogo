@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { getTeamBy, listTeamAthletes } from "@/domain/competitions/queries";
 import { POSITION_LABEL } from "@/domain/labels";
 import { requirePermission } from "@/lib/auth/session";
+import { getScorersBy } from "@/domain/standings/queries";
 
 async function Detail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,7 +14,8 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const team = await getTeamBy({ id, organizationId: actor.organizationId });
   if (!team) notFound();
-  const squad = await listTeamAthletes(team.id);
+  const [squad, scorers] = await Promise.all([listTeamAthletes(team.id), getScorersBy({ teamId: team.id, includeUnconfirmed: true })]);
+  const byAthlete = new Map(scorers.map((s) => [s.athleteId, s]));
   return (
     <>
       <PageHeader back={{ href: "/admin/equipes", label: "Equipes" }} title={team.name} description={team.city ?? undefined} />
@@ -28,6 +30,10 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
                   <span className="tabular w-8 text-center font-mono font-bold text-brand-amber">{a.shirtNumber ?? "–"}</span>
                   <span className="min-w-0 flex-1 truncate font-semibold">{a.name}</span>
                   <span className="w-10 text-xs text-muted-foreground">{a.position ? POSITION_LABEL[a.position] : ""}</span>
+                  <span className="w-20 text-right text-xs" title="Gols oficiais (+ a confirmar)">
+                    <span className="font-mono text-sm font-bold text-brand-amber">{byAthlete.get(a.id)?.goals ?? 0}</span> gols
+                    {(byAthlete.get(a.id)?.pending ?? 0) > 0 && <span className="text-muted-foreground"> (+{byAthlete.get(a.id)!.pending})</span>}
+                  </span>
                   <AthleteActiveToggle athlete={a} />
                 </li>
               ))}

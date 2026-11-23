@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ScorersTable } from "@/components/public/standings/tables";
 import { getCompetitionBy, listCompetitions } from "@/domain/competitions/queries";
-import { getScorers } from "@/domain/standings/queries";
+import { getScorersBy } from "@/domain/standings/queries";
 import { requestNow } from "@/lib/clock-now";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ async function Ranking({ searchParams }: { searchParams: Promise<{ c?: string }>
   if (comps.length === 0) return <p className="rounded-xl border border-dashed bg-card/60 p-8 text-center text-sm text-muted-foreground">Nenhuma competição publicada.</p>;
   const selected = comps.find((c) => c.slug === sp.c) ?? comps[0];
   const comp = await getCompetitionBy({ id: selected.id, publicOnly: true });
-  const rows = comp ? await getScorers(comp.id) : [];
+  const rows = comp ? await getScorersBy({ competitionId: comp.id }) : [];
   return (
     <>
       <nav className="flex gap-1.5 overflow-x-auto" aria-label="Competição">

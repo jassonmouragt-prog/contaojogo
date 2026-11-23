@@ -7,6 +7,7 @@ import { MatchRow } from "@/components/brand/match-row";
 import { TeamCrest } from "@/components/brand/team-crest";
 import { getTeamBy, listTeamAthletes, listTeamCompetitions, listTeamMatches } from "@/domain/competitions/queries";
 import { POSITION_LABEL, toMatchRow } from "@/domain/labels";
+import { getScorersBy } from "@/domain/standings/queries";
 
 async function TeamPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -18,6 +19,9 @@ async function TeamPage({ params }: { params: Promise<{ slug: string }> }) {
     listTeamAthletes(team.id, false),
     listTeamMatches(team.id, true),
   ]);
+  const scorers = await getScorersBy({ teamId: team.id });
+  const goals = new Map(scorers.map((s) => [s.athleteId, s.goals]));
+  const top = scorers.filter((s) => s.goals > 0).slice(0, 3);
   // Equipe só aparece no portal se participa de alguma competição publicada.
   if (comps.length === 0) notFound();
     const visible = games.filter((g) => g.status !== "CANCELLED");
@@ -51,6 +55,20 @@ async function TeamPage({ params }: { params: Promise<{ slug: string }> }) {
           )}
         </section>
         <section className="space-y-3">
+          {top.length > 0 && (
+            <div className="space-y-2">
+              <h2 className="text-xl font-extrabold uppercase">Artilheiros</h2>
+              <ol className="space-y-2">
+                {top.map((s, i) => (
+                  <li key={s.athleteId} className="flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5">
+                    <span className={`flex size-8 items-center justify-center rounded-lg font-display text-lg font-extrabold ${i === 0 ? "bg-brand-green text-primary-foreground" : "bg-muted text-muted-foreground"}`}>{i + 1}</span>
+                    <span className="min-w-0 flex-1 truncate font-semibold">{s.name}</span>
+                    <span className="font-mono text-lg font-bold text-brand-green">{s.goals}</span><span className="text-xs text-muted-foreground">gol{s.goals > 1 ? "s" : ""}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
           <h2 className="text-xl font-extrabold uppercase">Elenco</h2>
           <div className="overflow-hidden rounded-xl border bg-card">
             {squad.length === 0 ? (
@@ -58,7 +76,7 @@ async function TeamPage({ params }: { params: Promise<{ slug: string }> }) {
             ) : (
               <table className="w-full text-sm">
                 <thead className="bg-surface-2 text-[11px] uppercase text-muted-foreground">
-                  <tr><th className="px-3 py-2 text-left">#</th><th className="px-3 py-2 text-left">Atleta</th><th className="px-3 py-2 text-left">Pos</th></tr>
+                  <tr><th className="px-3 py-2 text-left">#</th><th className="px-3 py-2 text-left">Atleta</th><th className="px-3 py-2 text-left">Pos</th><th className="px-3 py-2 text-center">Gols</th></tr>
                 </thead>
                 <tbody className="divide-y">
                   {squad.map((a) => (
@@ -66,6 +84,7 @@ async function TeamPage({ params }: { params: Promise<{ slug: string }> }) {
                       <td className="tabular px-3 py-2 font-mono font-bold text-brand-green">{a.shirtNumber ?? "–"}</td>
                       <td className="px-3 py-2 font-semibold">{a.nickname ?? a.name}</td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">{a.position ? POSITION_LABEL[a.position] : ""}</td>
+                      <td className="tabular px-3 py-2 text-center font-mono font-bold">{goals.get(a.id) ?? 0}</td>
                     </tr>
                   ))}
                 </tbody>

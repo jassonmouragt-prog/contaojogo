@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, type SQL } from "drizzle-orm";
 import { getDb } from "@/db";
 import { athletes, competitionGroups, competitionPhases, competitionTeams, competitions, matchEvents, matches, teams } from "@/db/schema";
 import { computeScorers, computeStandings, type StandingRow } from "./compute";
@@ -79,4 +79,50 @@ export async function getDiscipline(competitionId: string) {
   }
   const order = <T extends { yellow: number; red: number; name: string }>(a: T, b: T) => b.red * 3 + b.yellow - (a.red * 3 + a.yellow) || a.name.localeCompare(b.name, "pt-BR");
   return { teams: [...byTeam.values()].sort(order), athletes: [...byAthlete.values()].sort(order) };
+}
+
+type ScopeOpts = { competitionId?: string; teamId?: string; includeUnconfirmed?: boolean };
+
+/**
+ * Artilharia por competição e/ou equipe. Oficial = só jogos CONFIRMADOS.
+ * Com includeUnconfirmed, separa os gols de jogos encerrados/ao vivo ainda
+ * não confirmados (visão do admin).
+ */
+export async function getScorersBy(opts: ScopeOpts) {
+  const f: SQL[] = [isNull(matchEvents.voidedAt), eq(matchEvents.type, "GOAL")];
+  if (opts.competitionId) f.push(eq(matches.competitionId, opts.competitionId));
+  if (opts.teamId) f.push(eq(matchEvents.teamId, opts.teamId));
+  f.push(opts.includeUnconfirmed ? inArray(matches.status, ["CONFIRMED", "FINISHED", "LIVE"]) : eq(matches.status, "CONFIRMED"));
+  const rows = await getDb()
+    .select({ athleteId: matchEvents.athleteId, detail: matchEvents.detail, status: matches.status, publishedComp: competitions.published })
+    .from(matchEvents)
+    .innerJoin(matches, eq(matches.id, matchEvents.matchId))
+    .innerJoin(competitions, eq(competitions.id, matches.competitionId))
+    .where(and(...f));
+  const tally = new Map<string, { goals: number; pending: number; assists: number }>();
+  const get = (id: string) => tally.get(id) ?? tally.set(id, { goals: 0, pending: 0, assists: 0 }).get(id)!;
+  for (const r of rows) {
+    if (!opts.competitionId && !opts.includeUnconfirmed && !r.publishedComp) continue;
+    const official = r.status === "CONFIRMED";
+    if (r.athleteId && !r.detail.ownGoal) {
+      if (official) get(r.athleteId).goals++;
+      else get(r.athleteId).pending++;
+    }
+    if (r.detail.assistAthleteId && official) get(r.detail.assistAthleteId).assists++;
+  }
+  const ids = [...tally.keys()];
+  if (ids.length === 0) return [];
+  const people = await getDb()
+    .select({ id: athletes.id, name: athletes.name, nickname: athletes.nickname, shirtNumber: athletes.shirtNumber, teamName: teams.name, teamSlug: teams.slug, crestUrl: teams.crestUrl })
+    .from(athletes).leftJoin(teams, eq(teams.id, athletes.teamId)).where(inArray(athletes.id, ids));
+  return people
+    .map((p) => ({ athleteId: p.id, name: p.nickname ?? p.name, shirtNumber: p.shirtNumber, teamName: p.teamName ?? "", teamSlug: p.teamSlug, crestUrl: p.crestUrl, ...tally.get(p.id)! }))
+    .filter((r) => r.goals + r.pending + r.assists > 0)
+    .sort((a, b) => b.goals - a.goals || b.pending - a.pending || b.assists - a.assists || a.name.localeCompare(b.name, "pt-BR"));
+}
+
+/** Gols oficiais por atleta (mapa) — usado no elenco da equipe. */
+export async function goalsByAthlete(teamId: string) {
+  const list = await getScorersBy({ teamId });
+  return new Map(list.map((r) => [r.athleteId, r.goals]));
 }

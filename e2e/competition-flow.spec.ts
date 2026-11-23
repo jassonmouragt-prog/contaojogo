@@ -171,5 +171,12 @@ test.describe("cadastro de competição e agenda", () => {
     await expect(leader).toContainText("3");
     await pub.getByRole("link", { name: "Artilharia" }).click();
     await expect(pub.locator("tbody tr").first()).toContainText("Pedro Lima");
+
+    // Artilharia também na página da equipe e no admin
+    await pub.locator("tbody tr").first().getByRole("link", { name: home }).click();
+    await expect(pub.getByRole("heading", { name: "Artilheiros" })).toBeVisible();
+    await expect(pub.locator("ol li").first()).toContainText("Pedro Lima");
+    await page.goto(`${compUrl}?aba=artilharia`);
+    await expect(page.locator("tbody tr").first()).toContainText("Pedro Lima");
   });
 });

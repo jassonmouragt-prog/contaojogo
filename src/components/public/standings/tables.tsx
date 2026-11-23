@@ -48,7 +48,7 @@ export function StandingsTables({ groups, qualify = 2 }: { groups: GroupStanding
   );
 }
 
-export function ScorersTable({ rows }: { rows: { athleteId: string; name: string; teamName: string; goals: number; assists: number }[] }) {
+export function ScorersTable({ rows }: { rows: { athleteId: string; name: string; teamName: string; goals: number; assists: number; teamSlug?: string | null; crestUrl?: string | null }[] }) {
   if (rows.length === 0) return <p className="rounded-xl border border-dashed bg-card/60 p-6 text-center text-sm text-muted-foreground">Nenhum gol em jogos confirmados.</p>;
   const podium = rows.filter((r) => r.goals > 0).slice(0, 3);
   return (
@@ -74,7 +74,14 @@ export function ScorersTable({ rows }: { rows: { athleteId: string; name: string
             {rows.map((r, i) => (
               <tr key={r.athleteId}>
                 <td className="tabular px-3 py-2 text-center text-muted-foreground">{i + 1}</td>
-                <td className="px-3 py-2"><span className="font-semibold">{r.name}</span> <span className="text-xs text-muted-foreground">{r.teamName}</span></td>
+                <td className="px-3 py-2">
+                  <span className="flex items-center gap-2">
+                    <TeamCrest name={r.teamName || r.name} src={r.crestUrl ?? null} size={20} />
+                    <span className="min-w-0"><span className="block truncate font-semibold">{r.name}</span>
+                      {r.teamSlug ? <Link href={`/equipes/${r.teamSlug}`} className="block truncate text-xs text-muted-foreground hover:text-brand-green">{r.teamName}</Link> : <span className="block truncate text-xs text-muted-foreground">{r.teamName}</span>}
+                    </span>
+                  </span>
+                </td>
                 <td className="tabular px-3 py-2 text-center font-mono font-bold text-brand-green">{r.goals}</td>
                 <td className="tabular px-3 py-2 text-center">{r.assists}</td>
               </tr>

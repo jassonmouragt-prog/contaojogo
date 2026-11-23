@@ -9,7 +9,7 @@ import { getCompetitionBy, getCompetitionStructure, getCompetitionSummary, listC
 import { COMPETITION_STATUS_LABEL, MODALITY_LABEL, toMatchRow } from "@/domain/labels";
 import { toLocalDay } from "@/lib/format";
 import { DisciplineTables, ScorersTable, StandingsTables } from "@/components/public/standings/tables";
-import { getDiscipline, getScorers, getStandings } from "@/domain/standings/queries";
+import { getDiscipline, getScorersBy, getStandings } from "@/domain/standings/queries";
 import { cn } from "@/lib/utils";
 import { SponsorSlot } from "@/components/engagement/sponsor-slot";
 import { listDocuments } from "@/domain/engagement/queries";
@@ -82,7 +82,7 @@ async function Central({ params, searchParams }: { params: Promise<{ slug: strin
       </nav>
 
       {tab === "classificacao" && <StandingsTables groups={await getStandings(comp)} />}
-      {tab === "artilharia" && <ScorersTable rows={await getScorers(comp.id)} />}
+      {tab === "artilharia" && <ScorersTable rows={await getScorersBy({ competitionId: comp.id })} />}
       {tab === "disciplina" && <DisciplineTables data={await getDiscipline(comp.id)} />}
       {tab === "documentos" && <DocumentList competitionId={comp.id} />}
 

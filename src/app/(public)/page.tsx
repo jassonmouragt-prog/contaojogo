@@ -15,6 +15,7 @@ import { formatDateTime } from "@/lib/datetime";
 import { dayRange, dayStart, toLocalDay } from "@/lib/format";
 import { realtimeEnabled } from "@/lib/realtime";
 import { inArray } from "drizzle-orm";
+import { getScorersBy } from "@/domain/standings/queries";
 
 async function loadWeek(now: number) {
   const today = toLocalDay(new Date(now));
@@ -74,8 +75,10 @@ async function CompetitionsSidebar() {
 
 async function RightRail() {
   const now = await requestNow();
-  const [news, polls] = await Promise.all([publishedNews(new Date(now), 3), listPolls()]);
+  const [news, polls, comps] = await Promise.all([publishedNews(new Date(now), 3), listPolls(), listCompetitions({ publicOnly: true })]);
   const open = polls.find((p) => p.status === "OPEN" || p.status === "FINALISTS");
+  const featured = comps.find((c) => c.status === "ONGOING") ?? comps[0];
+  const scorers = featured ? (await getScorersBy({ competitionId: featured.id })).filter((s) => s.goals > 0).slice(0, 5) : [];
   return (
     <div className="space-y-4">
       <SponsorSlot placement="HOME" />
@@ -85,6 +88,24 @@ async function RightRail() {
           <p className="mt-1 font-display text-xl font-bold uppercase leading-tight">{open.title}</p>
           <p className="mt-2 text-xs font-semibold text-brand-green">{open.status === "FINALISTS" ? "Ver finalistas →" : "Indicar atleta →"}</p>
         </Link>
+      )}
+      {featured && scorers.length > 0 && (
+        <section className="overflow-hidden rounded-xl border bg-card">
+          <div className="flex items-center justify-between bg-surface-2 px-3 py-2">
+            <p className="min-w-0 truncate text-xs font-bold uppercase tracking-wide">Artilheiros • {featured.name}</p>
+            <Link href={`/campeonatos/${featured.slug}?aba=artilharia`} className="shrink-0 text-[11px] font-semibold text-brand-green">Ver todos</Link>
+          </div>
+          <ol className="divide-y divide-border/60">
+            {scorers.map((s, i) => (
+              <li key={s.athleteId} className="flex items-center gap-3 px-3 py-2.5">
+                <span className={`w-5 text-center font-display text-base font-extrabold ${i === 0 ? "text-brand-green" : "text-muted-foreground"}`}>{i + 1}</span>
+                <TeamCrest name={s.teamName || s.name} src={s.crestUrl} size={22} />
+                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{s.name}</span><span className="block truncate text-[11px] text-muted-foreground">{s.teamName}</span></span>
+                <span className="font-mono text-lg font-bold text-brand-green">{s.goals}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
       <section className="overflow-hidden rounded-xl border bg-card">
         <div className="flex items-center justify-between bg-surface-2 px-3 py-2">
