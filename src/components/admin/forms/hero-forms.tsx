@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ActionForm } from "@/components/admin/action-form";
+import { ImageUpload } from "@/components/admin/image-upload";
 import { SelectInput, SubmitButton, TextInput } from "@/components/admin/fields";
 import { createHeroSlide, updateHeroSlide } from "@/domain/engagement/actions";
 
@@ -15,7 +16,7 @@ export function HeroSlideForm({ sponsors }: { sponsors: { value: string; label: 
           {kind === "SPONSOR" ? <SelectInput label="Patrocinador" name="sponsorId" options={sponsors} placeholder="Escolha…" required /> : <span />}
           <TextInput label="Título" name="title" required maxLength={90} placeholder="Final da Copa LIFAQUI" />
           <TextInput label="Subtítulo" name="subtitle" maxLength={160} placeholder="Domingo, 16h, Arena Souzão" />
-          <TextInput label="Imagem (link https, horizontal ~1600×600)" name="imageUrl" type="url" required className="sm:col-span-2" />
+          <div className="sm:col-span-2"><ImageUpload label="Imagem do banner" name="imageUrl" purpose="BANNER" required hint="Horizontal, de preferência 1920×720. O texto fica sobre o lado esquerdo." /></div>
           <TextInput label="Link ao clicar" name="linkUrl" placeholder="/campeonatos/copa-lifaqui ou https://…" />
           <TextInput label="Texto do botão" name="ctaLabel" maxLength={30} placeholder="Ver tabela" />
           <TextInput label="Tempo na tela (s)" name="durationSeconds" type="number" min={3} max={30} defaultValue={6} />

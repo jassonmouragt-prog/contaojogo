@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
-  experimental: { authInterrupts: true },
+  experimental: { authInterrupts: true, serverActions: { bodySizeLimit: "10mb" } },
   poweredByHeader: false,
   async headers() {
     return [

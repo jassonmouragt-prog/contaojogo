@@ -14,12 +14,14 @@ import { fromLocalInput } from "@/lib/datetime";
 import { slugify } from "@/lib/slug";
 
 const httpsUrl = z.url({ protocol: /^https$/, error: "Use um endereço https://" });
+/** Imagem anexada no painel (/api/media/<id>) ou link https. */
+const imageRef = z.string({ error: "Anexe a imagem." }).refine((v) => /^\/api\/media\/[0-9a-f-]{36}$/i.test(v) || /^https:\/\//.test(v), "Anexe a imagem.");
 const optDate = z.string().optional().transform((v) => (v ? fromLocalInput(v) : null));
 
 // ===== Patrocinadores =====
 const sponsorSchema = z.object({
   name: z.string({ error: "Informe o nome." }).min(2).max(80),
-  logoUrl: httpsUrl,
+  logoUrl: imageRef,
   linkUrl: httpsUrl.optional(),
   durationSeconds: z.coerce.number().int().min(2).max(30).default(4),
   startsAt: optDate,
@@ -74,7 +76,7 @@ const newsSchema = z.object({
   title: z.string({ error: "Informe o título." }).min(4).max(140),
   summary: z.string().max(280).optional(),
   body: z.string({ error: "Escreva o texto." }).min(10).max(20000),
-  coverUrl: httpsUrl.optional(),
+  coverUrl: imageRef.optional(),
   competitionId: z.uuid().optional(),
   publishAt: optDate,
   expiresAt: optDate,
@@ -205,7 +207,7 @@ const heroSchema = z.object({
   sponsorId: z.uuid().optional(),
   title: z.string({ error: "Informe o título." }).min(2).max(90),
   subtitle: z.string().max(160).optional(),
-  imageUrl: httpsUrl,
+  imageUrl: imageRef,
   linkUrl: z.string().max(500).optional(),
   ctaLabel: z.string().max(30).optional(),
   durationSeconds: z.coerce.number().int().min(3).max(30).default(6),

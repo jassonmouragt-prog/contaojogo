@@ -1,6 +1,7 @@
 "use client";
 
 import { ActionForm } from "@/components/admin/action-form";
+import { ImageUpload } from "@/components/admin/image-upload";
 import { SelectInput, SubmitButton, TextInput } from "@/components/admin/fields";
 import { createDocument, createNews, createPoll, createSponsor, hideNomination, replyTicket, setFinalists, toggleNews, updateSponsor } from "@/domain/engagement/actions";
 
@@ -13,7 +14,7 @@ export function SponsorForm() {
       {(pending) => (
         <>
           <TextInput label="Nome" name="name" required placeholder="Laticínios Richard" />
-          <TextInput label="Logo (link https da imagem)" name="logoUrl" type="url" required placeholder="https://…/logo.png" />
+          <ImageUpload label="Logo do patrocinador" name="logoUrl" purpose="LOGO" aspect="aspect-[3/2]" required hint="PNG com fundo transparente fica melhor." />
           <TextInput label="Link ao clicar (site, WhatsApp ou Instagram)" name="linkUrl" type="url" placeholder="https://wa.me/55…" />
           <TextInput label="Tempo na tela (segundos)" name="durationSeconds" type="number" min={2} max={30} defaultValue={4} />
           <TextInput label="Exibir a partir de" name="startsAt" type="datetime-local" />
@@ -63,7 +64,7 @@ export function NewsForm({ competitions }: { competitions: Opt[] }) {
             <label htmlFor="news-body" className="text-xs font-semibold text-muted-foreground">Texto</label>
             <textarea id="news-body" name="body" required minLength={10} rows={6} className="w-full rounded-lg border bg-background p-3 text-sm" />
           </div>
-          <TextInput label="Imagem de capa (https)" name="coverUrl" type="url" />
+          <ImageUpload label="Imagem de capa" name="coverUrl" purpose="COVER" aspect="aspect-video" />
           <SelectInput label="Competição" name="competitionId" options={competitions} placeholder="Geral" />
           <TextInput label="Publicar em" name="publishAt" type="datetime-local" hint="Vazio = agora" />
           <TextInput label="Expira em" name="expiresAt" type="datetime-local" />

@@ -1,4 +1,13 @@
 import { expect as baseExpect, test, type Browser, type Page } from "@playwright/test";
+import sharp from "sharp";
+
+/** Foto "pesada" (ruído, 3000×2000, JPEG ~3 MB) para testar a compressão. */
+async function bigPhoto() {
+  const w = 3000, h = 2000;
+  const raw = Buffer.alloc(w * h * 3);
+  for (let i = 0; i < raw.length; i++) raw[i] = (i * 2654435761) >>> 24;
+  return sharp(raw, { raw: { width: w, height: h, channels: 3 } }).jpeg({ quality: 95 }).toBuffer();
+}
 
 const expect = baseExpect.configure({ timeout: 15_000 });
 
@@ -34,7 +43,9 @@ test.describe("Fase 8 — engajamento, patrocínio, conteúdo e suporte", () => 
     // --- Patrocínio: cadastro → exibição → clique contado
     await loginOwner(page, "/admin/patrocinadores");
     await page.getByLabel("Nome", { exact: true }).fill(`Laticínios ${tag}`);
-    await page.getByLabel("Logo (link https da imagem)").fill("https://contaojogo.club/favicon.ico");
+    const photo = await bigPhoto();
+    await page.locator('input[type="file"]').setInputFiles({ name: "logo.jpg", mimeType: "image/jpeg", buffer: photo });
+    await expect(page.getByText(/Imagem otimizada: .* → \d+ KB • 600×400/)).toBeVisible({ timeout: 30_000 });
     await page.getByLabel(/Link ao clicar/).fill("https://example.com/");
     await page.getByRole("button", { name: "Cadastrar patrocinador" }).click();
     await expect(page.getByText("Patrocinador cadastrado.")).toBeVisible();
@@ -51,6 +62,25 @@ test.describe("Fase 8 — engajamento, patrocínio, conteúdo e suporte", () => 
     expect(click.headers()["location"]).toBe("https://example.com/");
     await page.reload();
     await expect(page.locator("li", { hasText: `Laticínios ${tag}` })).toContainText("1 cliques");
+
+    // logo servido pelo próprio site, em WebP e com cache longo
+    const logoSrc = await page.locator("li", { hasText: `Laticínios ${tag}` }).locator("img").getAttribute("src");
+    expect(logoSrc).toMatch(/^\/api\/media\/[0-9a-f-]{36}$/);
+    const logo = await page.request.get(logoSrc!);
+    expect(logo.headers()["content-type"]).toBe("image/webp");
+    expect(logo.headers()["cache-control"]).toContain("immutable");
+    expect((await logo.body()).length).toBeLessThan(photo.length / 5);
+
+    // --- Banner do topo com imagem anexada
+    await page.goto("/admin/banners");
+    await page.getByLabel("Título", { exact: true }).fill(`Final ${tag}`);
+    await page.locator('input[type="file"]').setInputFiles({ name: "banner.jpg", mimeType: "image/jpeg", buffer: photo });
+    await expect(page.getByText(/Imagem otimizada: .* • 1620×1080/)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: "Publicar banner" }).click();
+    await expect(page.getByText("Banner publicado.")).toBeVisible();
+    await visitor.goto("/");
+    await expect(visitor.getByRole("heading", { name: `Final ${tag}` }).or(visitor.getByText(`Final ${tag}`))).toBeAttached({ timeout: 30_000 });
+    await page.locator("li", { hasText: `Final ${tag}` }).getByRole("button", { name: "Pausar" }).click();
 
     // --- Conteúdo: notícia publicada aparece no portal
     await page.goto("/admin/conteudo");

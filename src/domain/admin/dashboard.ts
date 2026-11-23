@@ -91,6 +91,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "match.confirmed": "Resultado confirmado",
   "match.reopened": "Súmula reaberta",
   "hero.created": "Banner publicado",
+  "media.uploaded": "Imagem enviada",
   "user.password_reset": "Senha redefinida pelo admin",
   "user.password_set_cli": "Senha definida via terminal",
 };

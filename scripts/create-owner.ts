@@ -17,12 +17,14 @@ config({ path: ".env.local", override: false });
 
 async function main() {
   const { values } = parseArgs({
-    options: { email: { type: "string" }, name: { type: "string" }, password: { type: "string" } },
+    options: { email: { type: "string" }, name: { type: "string" }, password: { type: "string" }, role: { type: "string", default: "OWNER" } },
   });
   const email = values.email?.trim().toLowerCase();
   const name = values.name?.trim();
   const password = values.password ?? process.env.OWNER_PASSWORD;
   if (!email || !name) throw new Error("Informe --email e --name.");
+  const role = values.role as "OWNER" | "ADMIN" | "OPERATOR";
+  if (!["OWNER", "ADMIN", "OPERATOR"].includes(role)) throw new Error("--role deve ser OWNER, ADMIN ou OPERATOR.");
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL ausente.");
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -36,15 +38,15 @@ async function main() {
 
     const [existing] = await db.select().from(schema.user).where(eq(schema.user.email, email)).limit(1);
     if (existing) {
-      await db.update(schema.user).set({ role: "OWNER", banned: false, organizationId: org.id }).where(eq(schema.user.id, existing.id));
-      console.log(`Conta existente promovida a proprietário: ${email}`);
+      await db.update(schema.user).set({ role, banned: false, organizationId: org.id }).where(eq(schema.user.id, existing.id));
+      console.log(`Conta existente atualizada (${role}): ${email}`);
       return;
     }
     if (!password || password.length < 8) throw new Error("Senha ausente ou com menos de 8 caracteres.");
 
     const id = randomBytes(16).toString("hex");
     await db.transaction(async (tx) => {
-      await tx.insert(schema.user).values({ id, name, email, emailVerified: true, role: "OWNER", organizationId: org.id });
+      await tx.insert(schema.user).values({ id, name, email, emailVerified: true, role, organizationId: org.id });
       await tx.insert(schema.account).values({
         id: randomBytes(16).toString("hex"),
         accountId: id,
@@ -58,10 +60,10 @@ async function main() {
         action: "user.owner_bootstrapped",
         entityType: "user",
         entityId: id,
-        after: { email, role: "OWNER" },
+        after: { email, role },
       });
     });
-    console.log(`Proprietário criado: ${email}`);
+    console.log(`Conta criada (${role}): ${email}`);
   } finally {
     await pool.end();
   }
