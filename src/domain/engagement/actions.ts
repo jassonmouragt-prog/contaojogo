@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/db";
 import {
-  SPONSOR_PLACEMENTS, TICKET_STATUSES, documents, newsPosts, nominationPolls, nominations, pollFinalists, sponsors, supportTickets, ticketMessages,
+  SPONSOR_PLACEMENTS, TICKET_STATUSES, documents, heroSlides, newsPosts, nominationPolls, nominations, pollFinalists, sponsors, supportTickets, ticketMessages,
 } from "@/db/schema";
 import { recordAudit } from "@/domain/audit/record";
 import { type ActionResult, fail, firstIssue, formObject, isUniqueViolation, requireOrg } from "@/domain/shared/action-helpers";
@@ -196,5 +196,76 @@ export async function replyTicket(_p: ActionResult, fd: FormData): Promise<Actio
     return { ok: true, message: "Chamado atualizado." };
   });
   revalidatePath("/admin/suporte");
+  return res;
+}
+
+// ===== Banners do topo =====
+const heroSchema = z.object({
+  kind: z.enum(["SPONSOR", "HIGHLIGHT"]),
+  sponsorId: z.uuid().optional(),
+  title: z.string({ error: "Informe o título." }).min(2).max(90),
+  subtitle: z.string().max(160).optional(),
+  imageUrl: httpsUrl,
+  linkUrl: z.string().max(500).optional(),
+  ctaLabel: z.string().max(30).optional(),
+  durationSeconds: z.coerce.number().int().min(3).max(30).default(6),
+  startsAt: optDate,
+  endsAt: optDate,
+});
+
+/** Link interno ("/campeonatos/...") ou externo https. */
+function safeLink(v?: string): string | null | false {
+  if (!v) return null;
+  if (v.startsWith("/") && !v.startsWith("//")) return v;
+  try { return new URL(v).protocol === "https:" ? v : false; } catch { return false; }
+}
+
+export async function createHeroSlide(_p: ActionResult, fd: FormData): Promise<ActionResult> {
+  const actor = await authorizeAction("content.manage");
+  const org = requireOrg(actor);
+  const parsed = heroSchema.safeParse(formObject(fd));
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  const d = parsed.data;
+  const link = safeLink(d.linkUrl);
+  if (link === false) return fail("Link deve começar com / ou https://");
+  if (d.kind === "SPONSOR" && !d.sponsorId) return fail("Escolha o patrocinador do anúncio.");
+  await getDb().transaction(async (tx) => {
+    if (d.sponsorId) {
+      const [s] = await tx.select({ id: sponsors.id }).from(sponsors).where(and(eq(sponsors.id, d.sponsorId), eq(sponsors.organizationId, org)));
+      if (!s) throw new Error("Patrocinador inválido.");
+    }
+    const [{ next }] = await tx.select({ next: sql<number>`coalesce(max(${heroSlides.sortOrder}),0)+1` }).from(heroSlides).where(eq(heroSlides.organizationId, org));
+    const [row] = await tx.insert(heroSlides).values({
+      organizationId: org, kind: d.kind, sponsorId: d.kind === "SPONSOR" ? d.sponsorId! : null, title: d.title, subtitle: d.subtitle ?? null,
+      imageUrl: d.imageUrl, linkUrl: link, ctaLabel: d.ctaLabel ?? null, durationSeconds: d.durationSeconds, startsAt: d.startsAt, endsAt: d.endsAt, sortOrder: next,
+    }).returning({ id: heroSlides.id });
+    await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "hero.created", entityType: "hero", entityId: row.id, after: { title: d.title, kind: d.kind } });
+  });
+  revalidatePath("/admin/banners");
+  revalidatePath("/");
+  return { ok: true, message: "Banner publicado." };
+}
+
+export async function updateHeroSlide(_p: ActionResult, fd: FormData): Promise<ActionResult> {
+  const actor = await authorizeAction("content.manage");
+  const org = requireOrg(actor);
+  const p = z.object({ id: z.uuid(), op: z.enum(["toggle", "up", "down"]) }).safeParse(formObject(fd));
+  if (!p.success) return fail("Dados inválidos.");
+  const res = await getDb().transaction(async (tx) => {
+    const list = await tx.select().from(heroSlides).where(eq(heroSlides.organizationId, org)).orderBy(heroSlides.sortOrder);
+    const i = list.findIndex((s) => s.id === p.data.id);
+    if (i < 0) return fail("Banner não encontrado.");
+    if (p.data.op === "toggle") await tx.update(heroSlides).set({ active: !list[i].active }).where(eq(heroSlides.id, list[i].id));
+    else {
+      const j = p.data.op === "up" ? i - 1 : i + 1;
+      if (j < 0 || j >= list.length) return { ok: true, message: "Nenhuma alteração." };
+      [list[i], list[j]] = [list[j], list[i]];
+      for (let k = 0; k < list.length; k++) await tx.update(heroSlides).set({ sortOrder: k + 1 }).where(eq(heroSlides.id, list[k].id));
+    }
+    await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: `hero.${p.data.op}`, entityType: "hero", entityId: p.data.id });
+    return { ok: true, message: "Banner atualizado." };
+  });
+  revalidatePath("/admin/banners");
+  revalidatePath("/");
   return res;
 }

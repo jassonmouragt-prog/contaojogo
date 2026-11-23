@@ -121,3 +121,24 @@ export const ticketMessages = pgTable("ticket_messages", {
   body: text("body").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ===== Banners do topo do portal (anúncios e destaques) =====
+export const HERO_KINDS = ["SPONSOR", "HIGHLIGHT"] as const;
+export const heroSlides = pgTable("hero_slides", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: orgId(),
+  kind: text("kind").notNull().default("HIGHLIGHT"),
+  /** Quando é anúncio de patrocinador: visualizações e cliques entram no relatório dele. */
+  sponsorId: uuid("sponsor_id").references(() => sponsors.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  subtitle: text("subtitle"),
+  imageUrl: text("image_url").notNull(),
+  linkUrl: text("link_url"),
+  ctaLabel: text("cta_label"),
+  durationSeconds: smallint("duration_seconds").notNull().default(6),
+  sortOrder: smallint("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  ...ts,
+}, (t) => [check("hero_duration_ck", sql`${t.durationSeconds} between 3 and 30`), index("hero_org_order_idx").on(t.organizationId, t.sortOrder)]);

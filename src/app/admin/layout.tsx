@@ -14,6 +14,7 @@ const NAV: (AdminNavItem & { permission: Permission })[] = [
   { href: "/admin/competicoes", label: "Competições", permission: "competition.manage" },
   { href: "/admin/equipes", label: "Equipes", permission: "competition.manage" },
   { href: "/admin/locais", label: "Locais", permission: "competition.manage" },
+  { href: "/admin/banners", label: "Banners do topo", permission: "content.manage" },
   { href: "/admin/patrocinadores", label: "Patrocinadores", permission: "content.manage" },
   { href: "/admin/conteudo", label: "Conteúdo", permission: "content.manage" },
   { href: "/admin/indicacoes", label: "Indicações", permission: "content.manage" },

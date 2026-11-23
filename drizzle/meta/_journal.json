@@ -43,6 +43,13 @@
       "when": 1795434918414,
       "tag": "0005_engagement",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795439335859,
+      "tag": "0006_hero_slides",
+      "breakpoints": true
     }
   ]
 }

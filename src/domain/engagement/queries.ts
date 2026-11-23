@@ -2,7 +2,7 @@ import "server-only";
 import { and, arrayContains, asc, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
-  athletes, documents, newsPosts, nominationPolls, nominations, pollFinalists, rosterEntries, sponsorMetrics, sponsors, supportTickets, teams, ticketMessages, user,
+  athletes, documents, heroSlides, newsPosts, nominationPolls, nominations, pollFinalists, rosterEntries, sponsorMetrics, sponsors, supportTickets, teams, ticketMessages, user,
 } from "@/db/schema";
 
 /** Patrocinadores ativos e dentro do período para uma posição. */
@@ -117,4 +117,17 @@ export function myTickets(userId: string) {
 export function ticketThread(ticketId: string) {
   return getDb().select({ id: ticketMessages.id, body: ticketMessages.body, fromStaff: ticketMessages.fromStaff, createdAt: ticketMessages.createdAt })
     .from(ticketMessages).where(eq(ticketMessages.ticketId, ticketId)).orderBy(asc(ticketMessages.createdAt));
+}
+
+export function activeHeroSlides(now: Date) {
+  return getDb().select().from(heroSlides)
+    .where(and(eq(heroSlides.active, true), or(isNull(heroSlides.startsAt), lte(heroSlides.startsAt, now)), or(isNull(heroSlides.endsAt), gte(heroSlides.endsAt, now))))
+    .orderBy(asc(heroSlides.sortOrder));
+}
+
+export function listHeroSlides(org: string) {
+  return getDb()
+    .select({ slide: heroSlides, sponsorName: sponsors.name })
+    .from(heroSlides).leftJoin(sponsors, eq(sponsors.id, heroSlides.sponsorId))
+    .where(eq(heroSlides.organizationId, org)).orderBy(asc(heroSlides.sortOrder));
 }

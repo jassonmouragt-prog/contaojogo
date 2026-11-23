@@ -8,7 +8,7 @@ export function Logo({ className, href = "/" }: { className?: string; href?: str
       href={href}
       aria-label="Conta o Jogo — página inicial"
       className={cn(
-        "inline-flex h-9 items-center rounded-lg bg-white px-2 shadow-sm ring-1 ring-black/5",
+        "inline-flex h-11 items-center rounded-xl bg-white px-2.5 shadow-sm ring-1 ring-black/5",
         className,
       )}
     >
@@ -18,7 +18,7 @@ export function Logo({ className, href = "/" }: { className?: string; href?: str
         width={1050}
         height={720}
         priority
-        className="h-7 w-auto object-contain"
+        className="h-9 w-auto object-contain"
       />
     </Link>
   );

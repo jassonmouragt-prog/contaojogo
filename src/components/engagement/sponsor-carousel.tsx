@@ -36,13 +36,15 @@ export function SponsorCarousel({ items, placement }: { items: SponsorItem[]; pl
 
   if (!current) return null;
   const content = (
-    <div className="flex h-20 items-center gap-4 rounded-xl border bg-white px-4 sm:h-24">
-      <img src={current.logoUrl} alt={current.name} className="h-14 max-w-[45%] object-contain sm:h-16" />
+    <div className="@container rounded-xl border bg-white">
+     <div className="flex flex-col items-center gap-3 p-4 text-center @sm:h-24 @sm:flex-row @sm:gap-4 @sm:py-0 @sm:text-left">
+      <img src={current.logoUrl} alt={current.name} className="h-16 max-w-full object-contain @sm:h-16 @sm:max-w-[45%]" />
       <div className="min-w-0 flex-1 text-black">
         <p className="text-[10px] font-bold uppercase tracking-widest text-black/50">Patrocinador</p>
         <p className="truncate font-display text-lg font-bold uppercase">{current.name}</p>
       </div>
       {current.linkUrl && <span className="shrink-0 rounded-full bg-black px-3 py-1.5 text-xs font-bold text-brand-green">Conheça</span>}
+     </div>
     </div>
   );
   return (
