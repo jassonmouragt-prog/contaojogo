@@ -1,0 +1,118 @@
+import { expect as baseExpect, test, type Browser, type Page } from "@playwright/test";
+
+const expect = baseExpect.configure({ timeout: 15_000 });
+
+async function loginOwner(page: Page, next: string) {
+  await page.goto(`/entrar?next=${next}`);
+  await page.getByLabel("E-mail").fill(process.env.E2E_OWNER_EMAIL!);
+  await page.getByLabel("Senha").fill(process.env.E2E_OWNER_PASSWORD!);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.waitForURL((u) => u.pathname === next);
+}
+
+async function fan(browser: Browser, baseURL: string, tag: string, i: number) {
+  const ctx = await browser.newContext({ baseURL });
+  const page = await ctx.newPage();
+  await page.goto("/cadastro");
+  await page.getByLabel("Nome").fill(`Torcedor ${i} ${tag}`);
+  await page.getByLabel("E-mail").fill(`fan${i}-${tag.toLowerCase()}@teste.contaojogo.club`);
+  await page.getByLabel("Senha", { exact: true }).fill("senha-forte-123");
+  await page.getByLabel("Confirmar senha").fill("senha-forte-123");
+  await page.getByRole("button", { name: "Criar conta" }).click();
+  await page.waitForURL((u) => u.pathname === "/");
+  return { ctx, page };
+}
+
+test.describe("Fase 8 — engajamento, patrocínio, conteúdo e suporte", () => {
+  test.skip(!process.env.E2E_OWNER_EMAIL, "E2E_OWNER_EMAIL não definido");
+  test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "somente desktop"));
+
+  test("fluxos completos", async ({ page, browser, baseURL }) => {
+    test.setTimeout(240_000);
+    const tag = Date.now().toString(36).slice(-5).toUpperCase();
+
+    // --- Patrocínio: cadastro → exibição → clique contado
+    await loginOwner(page, "/admin/patrocinadores");
+    await page.getByLabel("Nome", { exact: true }).fill(`Laticínios ${tag}`);
+    await page.getByLabel("Logo (link https da imagem)").fill("https://contaojogo.club/favicon.ico");
+    await page.getByLabel(/Link ao clicar/).fill("https://example.com/");
+    await page.getByRole("button", { name: "Cadastrar patrocinador" }).click();
+    await expect(page.getByText("Patrocinador cadastrado.")).toBeVisible();
+
+    const anon = await browser.newContext({ baseURL });
+    const visitor = await anon.newPage();
+    await visitor.goto("/");
+    const banner = visitor.getByRole("link", { name: new RegExp(`Laticínios ${tag}`) });
+    // pode haver outros patrocinadores rodando: espera o nosso aparecer (troca a cada 4s)
+    await expect(banner).toBeVisible({ timeout: 40_000 });
+    const href = await banner.getAttribute("href");
+    const click = await anon.request.get(href!, { maxRedirects: 0 });
+    expect(click.status()).toBe(302);
+    expect(click.headers()["location"]).toBe("https://example.com/");
+    await page.reload();
+    await expect(page.locator("li", { hasText: `Laticínios ${tag}` })).toContainText("1 cliques");
+
+    // --- Conteúdo: notícia publicada aparece no portal
+    await page.goto("/admin/conteudo");
+    await page.getByLabel("Título", { exact: true }).first().fill(`Mulungu vence clássico ${tag}`);
+    await page.getByLabel("Texto").fill("Com gol de Pedro Lima, o Mulungu venceu o Gaspar.");
+    await page.getByRole("button", { name: "Salvar notícia" }).click();
+    await expect(page.getByText("Notícia salva.")).toBeVisible();
+    await visitor.goto("/noticias");
+    await visitor.getByRole("link", { name: new RegExp(`Mulungu vence clássico ${tag}`) }).click();
+    await expect(visitor.getByText("Com gol de Pedro Lima")).toBeVisible();
+
+    // --- Suporte: visitante abre chamado, equipe responde e resolve
+    await visitor.goto("/suporte?tipo=MATCH_ERROR&pagina=/jogos/x");
+    await visitor.getByLabel("Nome").fill(`Visitante ${tag}`);
+    await visitor.getByLabel("E-mail").fill("visitante@teste.contaojogo.club");
+    await visitor.getByLabel("Mensagem").fill(`Placar errado no jogo ${tag}`);
+    await visitor.getByRole("button", { name: "Abrir chamado" }).click();
+    await expect(visitor.getByText(/Chamado #\d{4} aberto/)).toBeVisible();
+    await page.goto("/admin/suporte");
+    const ticket = page.locator("li", { hasText: `Placar errado no jogo ${tag}` });
+    await expect(ticket).toContainText("Erro em jogo");
+    await ticket.getByLabel("Resposta").fill("Corrigido, obrigado!");
+    await ticket.getByLabel("Situação").selectOption("RESOLVED");
+    await ticket.getByRole("button", { name: "Salvar" }).click();
+    await expect(ticket.getByText("Corrigido, obrigado!")).toBeVisible();
+    await expect(ticket).toContainText("Resolvido");
+
+    // --- Indicações: torcedores indicam, admin escolhe 3 finalistas
+    await page.goto("/admin/indicacoes");
+    await page.getByLabel("Título").fill(`Craque ${tag}`);
+    await page.getByRole("button", { name: "Abrir indicações" }).click();
+    await expect(page.getByText("Indicações abertas.")).toBeVisible();
+
+    for (let i = 1; i <= 3; i++) {
+      const f = await fan(browser, baseURL!, tag, i);
+      await f.page.goto("/indicacoes");
+      const poll = f.page.locator("section", { hasText: `Craque ${tag}` });
+      const opts = await poll.getByLabel("Atleta").locator("option").allTextContents();
+      await poll.getByLabel("Atleta").selectOption({ index: i }); // 3 atletas diferentes
+      await poll.getByRole("button", { name: "Indicar atleta" }).click();
+      // o formulário dá lugar à confirmação (uma indicação por conta)
+      await expect(f.page.locator("section", { hasText: `Craque ${tag}` }).getByText("Sua indicação:")).toBeVisible();
+      expect(opts.length).toBeGreaterThan(3);
+      await f.page.reload();
+      await expect(f.page.locator("section", { hasText: `Craque ${tag}` }).getByRole("button", { name: "Indicar atleta" })).toHaveCount(0);
+      await f.ctx.close();
+    }
+
+    await page.reload();
+    const panel = page.locator("section", { hasText: `Craque ${tag}` });
+    await panel.getByLabel("Link da votação no Instagram").fill("https://www.instagram.com/contaojogo/");
+    await panel.getByRole("button", { name: "Publicar finalistas" }).click();
+    await expect(page.getByText("Finalistas definidos e publicados.")).toBeVisible();
+
+    await visitor.goto("/indicacoes");
+    const pub = visitor.locator("section", { hasText: `Craque ${tag}` });
+    await expect(pub.getByText("1º")).toBeVisible();
+    await expect(pub.getByRole("link", { name: /Votar no Instagram/ })).toHaveAttribute("href", "https://www.instagram.com/contaojogo/");
+
+    // pausa o patrocinador de teste para não poluir o portal de desenvolvimento
+    await page.goto("/admin/patrocinadores");
+    await page.locator("li", { hasText: `Laticínios ${tag}` }).getByRole("button", { name: "Pausar" }).click();
+    await anon.close();
+  });
+});
