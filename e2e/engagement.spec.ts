@@ -78,6 +78,10 @@ test.describe("Fase 8 — engajamento, patrocínio, conteúdo e suporte", () => 
     await expect(page.getByText(/Imagem otimizada: .* • 1620×1080/)).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: "Publicar banner" }).click();
     await expect(page.getByText("Banner publicado.")).toBeVisible();
+    // formulário limpo para o próximo cadastro (inclusive a imagem anexada)
+    await expect(page.getByLabel("Título", { exact: true })).toHaveValue("");
+    await expect(page.getByAltText("Pré-visualização")).toHaveCount(0);
+    await expect(page.getByText(/Imagem otimizada/)).toHaveCount(0);
     await visitor.goto("/");
     await expect(visitor.getByRole("heading", { name: `Final ${tag}` }).or(visitor.getByText(`Final ${tag}`))).toBeAttached({ timeout: 30_000 });
     await page.locator("li", { hasText: `Final ${tag}` }).getByRole("button", { name: "Pausar" }).click();

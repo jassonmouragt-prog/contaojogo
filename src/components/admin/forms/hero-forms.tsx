@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActionForm } from "@/components/admin/action-form";
 import { ImageUpload } from "@/components/admin/image-upload";
 import { SelectInput, SubmitButton, TextInput } from "@/components/admin/fields";
@@ -8,10 +8,18 @@ import { createHeroSlide, updateHeroSlide } from "@/domain/engagement/actions";
 
 export function HeroSlideForm({ sponsors }: { sponsors: { value: string; label: string }[] }) {
   const [kind, setKind] = useState("HIGHLIGHT");
+  const anchor = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const form = anchor.current?.closest("form");
+    const reset = () => setKind("HIGHLIGHT");
+    form?.addEventListener("reset", reset);
+    return () => form?.removeEventListener("reset", reset);
+  }, []);
   return (
     <ActionForm action={createHeroSlide} resetOnSuccess className="grid gap-3 sm:grid-cols-2">
       {(pending) => (
         <>
+          <span ref={anchor} hidden />
           <SelectInput label="Tipo" name="kind" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: "HIGHLIGHT", label: "Destaque (jogo, campeonato, notícia)" }, { value: "SPONSOR", label: "Anúncio de patrocinador" }]} />
           {kind === "SPONSOR" ? <SelectInput label="Patrocinador" name="sponsorId" options={sponsors} placeholder="Escolha…" required /> : <span />}
           <TextInput label="Título" name="title" required maxLength={90} placeholder="Final da Copa LIFAQUI" />
@@ -21,8 +29,8 @@ export function HeroSlideForm({ sponsors }: { sponsors: { value: string; label: 
           <TextInput label="Texto do botão" name="ctaLabel" maxLength={30} placeholder="Ver tabela" />
           <TextInput label="Tempo na tela (s)" name="durationSeconds" type="number" min={3} max={30} defaultValue={6} />
           <span />
-          <TextInput label="Exibir a partir de" name="startsAt" type="datetime-local" />
-          <TextInput label="Exibir até" name="endsAt" type="datetime-local" />
+          <TextInput label="Exibir a partir de (dia e hora)" name="startsAt" type="datetime-local" hint="Vazio = já começa agora" />
+          <TextInput label="Exibir até (dia e hora)" name="endsAt" type="datetime-local" hint="Vazio = sem data para sair" />
           <div className="sm:col-span-2"><SubmitButton pending={pending}>Publicar banner</SubmitButton></div>
         </>
       )}

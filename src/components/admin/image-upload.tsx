@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { ImagePlus, Loader2 } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { uploadImage } from "@/domain/media/actions";
 
 const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -44,6 +44,16 @@ export function ImageUpload({
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const holder = useRef<HTMLDivElement>(null);
+
+  // Quando o formulário é limpo (após publicar), a imagem anexada também é.
+  useEffect(() => {
+    const form = holder.current?.closest("form");
+    if (!form) return;
+    const clear = () => { setUrl(""); setInfo(null); setError(null); };
+    form.addEventListener("reset", clear);
+    return () => form.removeEventListener("reset", clear);
+  }, []);
 
   async function onPick(file: File | undefined) {
     if (!file) return;
@@ -66,7 +76,7 @@ export function ImageUpload({
   }
 
   return (
-    <div className="space-y-1">
+    <div ref={holder} className="space-y-1">
       <span className="text-xs font-semibold text-muted-foreground">{label}</span>
       <input type="hidden" name={name} value={url} required={required} />
       <label

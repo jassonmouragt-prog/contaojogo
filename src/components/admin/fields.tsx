@@ -3,6 +3,7 @@
 import { useId } from "react";
 import { cn } from "@/lib/utils";
 
+const PICKER_TYPES = new Set(["date", "datetime-local", "time"]);
 const control = "h-10 w-full rounded-lg border bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring";
 
 export function Field({ label, htmlFor, children, className, hint }: { label: string; htmlFor: string; children: React.ReactNode; className?: string; hint?: string }) {
@@ -19,7 +20,19 @@ export function TextInput({ label, name, className, hint, ...props }: { label: s
   const id = `${name}-${useId()}`;
   return (
     <Field label={label} htmlFor={id} className={className} hint={hint}>
-      <input id={id} name={name} className={control} {...props} />
+      <input
+        id={id}
+        name={name}
+        className={cn(control, PICKER_TYPES.has(String(props.type)) && "cursor-pointer [color-scheme:dark]")}
+        {...props}
+        // Data/hora: abre o calendário ao clicar em qualquer parte do campo, não só no ícone.
+        onClick={(e) => {
+          props.onClick?.(e);
+          if (PICKER_TYPES.has(String(props.type))) {
+            try { e.currentTarget.showPicker?.(); } catch { /* navegador sem suporte */ }
+          }
+        }}
+      />
     </Field>
   );
 }

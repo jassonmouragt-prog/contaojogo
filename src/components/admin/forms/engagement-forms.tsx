@@ -17,8 +17,8 @@ export function SponsorForm() {
           <ImageUpload label="Logo do patrocinador" name="logoUrl" purpose="LOGO" aspect="aspect-[3/2]" required hint="PNG com fundo transparente fica melhor." />
           <TextInput label="Link ao clicar (site, WhatsApp ou Instagram)" name="linkUrl" type="url" placeholder="https://wa.me/55…" />
           <TextInput label="Tempo na tela (segundos)" name="durationSeconds" type="number" min={2} max={30} defaultValue={4} />
-          <TextInput label="Exibir a partir de" name="startsAt" type="datetime-local" />
-          <TextInput label="Exibir até" name="endsAt" type="datetime-local" />
+          <TextInput label="Exibir a partir de (dia e hora)" name="startsAt" type="datetime-local" hint="Vazio = já começa agora" />
+          <TextInput label="Exibir até (dia e hora)" name="endsAt" type="datetime-local" hint="Vazio = sem data para sair" />
           <fieldset className="sm:col-span-2">
             <legend className="text-xs font-semibold text-muted-foreground">Posições</legend>
             <div className="mt-1 flex flex-wrap gap-4 text-sm">
