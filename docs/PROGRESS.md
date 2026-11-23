@@ -75,7 +75,7 @@
 - Produção: migrations 0002–0005 aplicadas; snapshot `pre-lancamento-2026-11-23`. Agendamento de snapshot do Neon indisponível no plano → backup diário por GitHub Actions (`backup.yml`, pg_dump + verificação, 30 dias). CI em `ci.yml`.
 - Docs: `docs/DEPLOY.md` (passo a passo Vercel, variáveis, domínio, restauração, checklist) e `docs/SECURITY.md`.
 - Testes: 42 unit, 15 E2E (cabeçalhos, exportação restrita).
-- **Pendente:** deploy — precisa do repositório no GitHub do proprietário + importação na Vercel (ver DEPLOY.md).
+- **Publicado:** https://contaojogo.vercel.app (Vercel, projeto `contaojogo`, região gru1, deploy automático a cada push em `main`; previews usam o Neon `dev` e exigem login na Vercel). Repositório privado jassonmouragt-prog/contaojogo.
 
 ## Pendências
 - Upload direto de imagens (logos, capas, prints): hoje são links https; com credenciais do Cloudflare R2 vira upload.
@@ -86,4 +86,4 @@
 - Assistente de 5 etapas e geração automática de tabela (PDF p.18): hoje o cadastro é em uma tela + agendamento manual.
 - Git não inicializado (pasta no OneDrive).
 
-## Próximo: deploy na Vercel e itens pendentes acima.
+## Próximo: apontar o domínio contaojogo.club, cadastrar o segredo do backup no GitHub e itens pendentes acima.
