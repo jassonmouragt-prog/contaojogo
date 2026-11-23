@@ -17,7 +17,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-white/5 bg-[#030504]/90 backdrop-blur-xl">
       <div aria-hidden className="h-0.5 bg-gradient-to-r from-brand-green via-brand-lime to-brand-green" />
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-3 sm:px-4">
+      <div className="mx-auto flex h-[72px] max-w-7xl sm:h-20 items-center gap-4 px-3 sm:px-4">
         <Logo />
         <nav aria-label="Principal" className="hidden items-center overflow-x-auto md:flex">
           <Suspense fallback={null}><NavLinks items={[...PUBLIC_NAV]} /></Suspense>

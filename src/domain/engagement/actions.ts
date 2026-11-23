@@ -205,7 +205,7 @@ export async function replyTicket(_p: ActionResult, fd: FormData): Promise<Actio
 const heroSchema = z.object({
   kind: z.enum(["SPONSOR", "HIGHLIGHT"]),
   sponsorId: z.uuid().optional(),
-  title: z.string({ error: "Informe o título." }).min(2).max(90),
+  title: z.string().max(90).optional(),
   subtitle: z.string().max(160).optional(),
   imageUrl: imageRef,
   linkUrl: z.string().max(500).optional(),
@@ -238,10 +238,10 @@ export async function createHeroSlide(_p: ActionResult, fd: FormData): Promise<A
     }
     const [{ next }] = await tx.select({ next: sql<number>`coalesce(max(${heroSlides.sortOrder}),0)+1` }).from(heroSlides).where(eq(heroSlides.organizationId, org));
     const [row] = await tx.insert(heroSlides).values({
-      organizationId: org, kind: d.kind, sponsorId: d.kind === "SPONSOR" ? d.sponsorId! : null, title: d.title, subtitle: d.subtitle ?? null,
+      organizationId: org, kind: d.kind, sponsorId: d.kind === "SPONSOR" ? d.sponsorId! : null, title: d.title ?? "", subtitle: d.subtitle ?? null,
       imageUrl: d.imageUrl, linkUrl: link, ctaLabel: d.ctaLabel ?? null, durationSeconds: d.durationSeconds, startsAt: d.startsAt, endsAt: d.endsAt, sortOrder: next,
     }).returning({ id: heroSlides.id });
-    await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "hero.created", entityType: "hero", entityId: row.id, after: { title: d.title, kind: d.kind } });
+    await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "hero.created", entityType: "hero", entityId: row.id, after: { title: d.title ?? "(só imagem)", kind: d.kind } });
   });
   revalidatePath("/admin/banners");
   revalidatePath("/");

@@ -81,7 +81,10 @@ export function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
 function SlideView({ s }: { s: HeroSlide }) {
   if (s.kind === "TODAY") return <TodaySlide s={s} />;
   if (s.kind === "BRAND") return <BrandSlide />;
-  const body = (
+  const textless = !s.title && !s.subtitle && !s.cta;
+  const body = textless ? (
+    <img src={s.imageUrl} alt={s.sponsorName ?? "Destaque"} className="absolute inset-0 size-full object-cover" />
+  ) : (
     <>
       <img src={s.imageUrl} alt="" className="absolute inset-0 size-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent sm:bg-gradient-to-r sm:from-black/85 sm:via-black/40" />
@@ -89,14 +92,14 @@ function SlideView({ s }: { s: HeroSlide }) {
         <span className={cn("inline-block rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest", s.kind === "SPONSOR" ? "bg-white text-black" : "bg-brand-green text-primary-foreground")}>
           {s.kind === "SPONSOR" ? s.sponsorName ?? "Patrocinador" : "Destaque"}
         </span>
-        <h2 className="font-display text-3xl font-extrabold uppercase leading-[0.95] text-white drop-shadow sm:text-5xl">{s.title}</h2>
+        {s.title && <h2 className="font-display text-3xl font-extrabold uppercase leading-[0.95] text-white drop-shadow sm:text-5xl">{s.title}</h2>}
         {s.subtitle && <p className="max-w-md text-sm text-white/80 sm:text-base">{s.subtitle}</p>}
         {s.href && s.cta && <span className="mt-1 inline-flex h-10 items-center rounded-full bg-brand-green px-5 text-sm font-bold text-primary-foreground">{s.cta}</span>}
       </div>
     </>
   );
   return s.href ? (
-    <a href={s.href} target={s.href.startsWith("/api/hero") && s.kind === "SPONSOR" ? "_blank" : undefined} rel={s.kind === "SPONSOR" ? "noopener sponsored" : undefined} className="absolute inset-0 block" aria-label={s.title}>{body}</a>
+    <a href={s.href} target={s.href.startsWith("/api/hero") && s.kind === "SPONSOR" ? "_blank" : undefined} rel={s.kind === "SPONSOR" ? "noopener sponsored" : undefined} className="absolute inset-0 block" aria-label={s.title || s.sponsorName || "Destaque"}>{body}</a>
   ) : <div className="absolute inset-0">{body}</div>;
 }
 

@@ -22,11 +22,11 @@ export function HeroSlideForm({ sponsors }: { sponsors: { value: string; label: 
           <span ref={anchor} hidden />
           <SelectInput label="Tipo" name="kind" value={kind} onChange={(e) => setKind(e.target.value)} options={[{ value: "HIGHLIGHT", label: "Destaque (jogo, campeonato, notícia)" }, { value: "SPONSOR", label: "Anúncio de patrocinador" }]} />
           {kind === "SPONSOR" ? <SelectInput label="Patrocinador" name="sponsorId" options={sponsors} placeholder="Escolha…" required /> : <span />}
-          <TextInput label="Título" name="title" required maxLength={90} placeholder="Final da Copa LIFAQUI" />
-          <TextInput label="Subtítulo" name="subtitle" maxLength={160} placeholder="Domingo, 16h, Arena Souzão" />
+          <TextInput label="Título (opcional)" name="title" maxLength={90} placeholder="Final da Copa LIFAQUI" hint="Deixe vazio se o texto já está na arte." />
+          <TextInput label="Subtítulo (opcional)" name="subtitle" maxLength={160} placeholder="Domingo, 16h, Arena Souzão" />
           <div className="sm:col-span-2"><ImageUpload label="Imagem do banner" name="imageUrl" purpose="BANNER" required hint="Horizontal, de preferência 1920×720. O texto fica sobre o lado esquerdo." /></div>
           <TextInput label="Link ao clicar" name="linkUrl" placeholder="/campeonatos/copa-lifaqui ou https://…" />
-          <TextInput label="Texto do botão" name="ctaLabel" maxLength={30} placeholder="Ver tabela" />
+          <TextInput label="Texto do botão (opcional)" name="ctaLabel" maxLength={30} placeholder="Ver tabela" />
           <TextInput label="Tempo na tela (s)" name="durationSeconds" type="number" min={3} max={30} defaultValue={6} />
           <span />
           <TextInput label="Exibir a partir de (dia e hora)" name="startsAt" type="datetime-local" hint="Vazio = já começa agora" />

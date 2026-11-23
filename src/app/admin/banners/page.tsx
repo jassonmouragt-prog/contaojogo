@@ -24,7 +24,7 @@ async function Banners() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={s.imageUrl} alt="" className="h-14 w-36 rounded-lg object-cover" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{s.title}</p>
+                  <p className="font-semibold">{s.title || <span className="text-muted-foreground">Só imagem (texto na arte)</span>}</p>
                   <p className="text-xs text-muted-foreground">
                     {s.kind === "SPONSOR" ? `Anúncio • ${sponsorName ?? ""}` : "Destaque"} • {s.durationSeconds}s
                     {s.startsAt ? ` • de ${formatDateTime(s.startsAt)}` : ""}{s.endsAt ? ` até ${formatDateTime(s.endsAt)}` : ""}{!s.active ? " • pausado" : ""}

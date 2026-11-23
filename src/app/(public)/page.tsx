@@ -36,7 +36,9 @@ async function Hero() {
 
   const admin: HeroSlide[] = slides.map((s) => ({
     id: s.id, kind: s.kind === "SPONSOR" ? "SPONSOR" : "HIGHLIGHT", title: s.title, subtitle: s.subtitle, imageUrl: s.imageUrl,
-    href: s.linkUrl ? `/api/hero/${s.id}/click` : null, cta: s.linkUrl ? s.ctaLabel ?? (s.kind === "SPONSOR" ? "Conheça" : "Ver mais") : null,
+    href: s.linkUrl ? `/api/hero/${s.id}/click` : null,
+    // Banner "só imagem" (texto já na arte): sem botão automático.
+    cta: s.linkUrl && (s.title || s.ctaLabel) ? s.ctaLabel ?? (s.kind === "SPONSOR" ? "Conheça" : "Ver mais") : null,
     duration: s.durationSeconds, sponsorId: s.sponsorId, sponsorName: s.sponsorId ? names.get(s.sponsorId) : null,
   }));
   const todaySlide: HeroSlide | null = todayMatches.length ? { id: "today", kind: "TODAY", matches: ordered.slice(0, 4), total: todayMatches.length, live, duration: 8 } : null;
