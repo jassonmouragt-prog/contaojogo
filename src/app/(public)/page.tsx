@@ -6,7 +6,7 @@ import { MatchCenter } from "@/components/public/match-center";
 import { TeamCrest } from "@/components/brand/team-crest";
 import { getDb } from "@/db";
 import { sponsors } from "@/db/schema";
-import { listCompetitions, listMatchesBetween } from "@/domain/competitions/queries";
+import { listCompetitions, listLiveMatches, listMatchesBetween } from "@/domain/competitions/queries";
 import { activeHeroSlides, listPolls, publishedNews } from "@/domain/engagement/queries";
 import { toMatchRow } from "@/domain/labels";
 import { groupMatchesForCenter } from "@/domain/public/match-groups";
@@ -20,7 +20,13 @@ import { getScorersBy } from "@/domain/standings/queries";
 async function loadWeek(now: number) {
   const today = toLocalDay(new Date(now));
   const days = dayRange(today, 3, 3);
-  const rows = await listMatchesBetween({ from: dayStart(days[0]), to: new Date(dayStart(days[days.length - 1]).getTime() + 86_400_000), publicOnly: true });
+  const [week, live] = await Promise.all([
+    listMatchesBetween({ from: dayStart(days[0]), to: new Date(dayStart(days[days.length - 1]).getTime() + 86_400_000), publicOnly: true }),
+    listLiveMatches({ publicOnly: true }),
+  ]);
+  // Ao vivo primeiro (sem duplicar quem já está na semana).
+  const ids = new Set(live.map((m) => m.id));
+  const rows = [...live, ...week.filter((m) => !ids.has(m.id))];
   return { today, days, rows };
 }
 
@@ -30,7 +36,7 @@ async function Hero() {
   const sponsorIds = slides.map((s) => s.sponsorId).filter((x): x is string => !!x);
   const names = sponsorIds.length ? new Map((await getDb().select({ id: sponsors.id, name: sponsors.name }).from(sponsors).where(inArray(sponsors.id, sponsorIds))).map((s) => [s.id, s.name])) : new Map<string, string>();
 
-  const todayRows = rows.filter((m) => toLocalDay(m.scheduledAt) === today && m.status !== "CANCELLED");
+  const todayRows = rows.filter((m) => (m.status === "LIVE" || toLocalDay(m.scheduledAt) === today) && m.status !== "CANCELLED");
   const todayMatches = todayRows.map((m) => toMatchRow(m, now, `/jogos/${m.id}`));
   const live = todayMatches.filter((m) => m.status === "live" || m.status === "halftime").length;
   const ordered = [...todayMatches].sort((a, b) => (a.status === "live" ? -1 : 0) - (b.status === "live" ? -1 : 0));
@@ -64,7 +70,7 @@ async function CompetitionsSidebar() {
       {rows.map((c) => (
         <li key={c.id}>
           <Link href={`/campeonatos/${c.slug}`} className="flex items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-row-hover hover:text-brand-green">
-            <TeamCrest name={c.name} size={22} />
+            <TeamCrest name={c.name} src={c.logoUrl} size={24} />
             <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{c.name}</span><span className="block text-[11px] text-muted-foreground">{c.season}</span></span>
           </Link>
         </li>

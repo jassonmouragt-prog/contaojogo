@@ -30,13 +30,21 @@ export function ImageUpload({
   required,
   hint,
   aspect = "aspect-[16/6]",
+  initialUrl,
+  compact = false,
+  round = false,
 }: {
   name: string;
   label: string;
-  purpose: "BANNER" | "LOGO" | "COVER";
+  purpose: "BANNER" | "LOGO" | "COVER" | "CREST" | "PHOTO";
   required?: boolean;
   hint?: string;
   aspect?: string;
+  /** Imagem atual (edição): aparece na prévia; sem trocar, continua a mesma. */
+  initialUrl?: string | null;
+  /** Caixa pequena (escudo/foto) em vez da área larga de banner. */
+  compact?: boolean;
+  round?: boolean;
 }) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
@@ -59,7 +67,7 @@ export function ImageUpload({
     if (!file) return;
     setBusy(true); setError(null); setInfo(null);
     try {
-      const blob = await preshrink(file, purpose === "LOGO" ? 1200 : 2400);
+      const blob = await preshrink(file, purpose === "LOGO" || purpose === "CREST" ? 1200 : purpose === "PHOTO" ? 1600 : 2400);
       const fd = new FormData();
       fd.set("file", new File([blob], "imagem", { type: blob.type || file.type }));
       fd.set("purpose", purpose);
@@ -76,27 +84,28 @@ export function ImageUpload({
   }
 
   return (
-    <div ref={holder} className="space-y-1">
+    <div ref={holder} className={compact ? "flex flex-col items-center gap-1 text-center" : "space-y-1"}>
       <span className="text-xs font-semibold text-muted-foreground">{label}</span>
-      <input type="hidden" name={name} value={url} required={required} />
+      <input type="hidden" name={name} value={url} required={required && !initialUrl} />
       <label
         htmlFor={id}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => { e.preventDefault(); void onPick(e.dataTransfer.files[0]); }}
-        className={`relative flex ${aspect} cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed bg-background transition-colors hover:border-brand-amber/60 ${purpose === "LOGO" ? "max-w-56" : ""}`}
+        className={`relative flex cursor-pointer items-center justify-center overflow-hidden border-2 border-dashed bg-background transition-colors hover:border-brand-amber/60 ${
+          compact ? `size-24 ${round ? "rounded-full" : "rounded-2xl"}` : `${aspect} rounded-xl ${purpose === "LOGO" ? "max-w-56" : ""}`}`}
       >
-        {url ? (
-          <img src={url} alt="Pré-visualização" className={`size-full ${purpose === "LOGO" ? "bg-white object-contain p-2" : "object-cover"}`} />
+        {url || initialUrl ? (
+          <img src={url || initialUrl!} alt="Pré-visualização" className={`size-full ${purpose === "LOGO" || purpose === "CREST" ? "object-contain p-2" : "object-cover"} ${purpose === "LOGO" ? "bg-white" : ""}`} />
         ) : (
-          <span className="flex flex-col items-center gap-1 p-4 text-center text-xs text-muted-foreground">
-            <ImagePlus className="size-6" />
-            Toque para anexar ou arraste a imagem
+          <span className="flex flex-col items-center gap-1 p-2 text-center text-[11px] leading-tight text-muted-foreground">
+            <ImagePlus className={compact ? "size-5" : "size-6"} />
+            {compact ? "Adicionar" : "Toque para anexar ou arraste a imagem"}
           </span>
         )}
         {busy && <span className="absolute inset-0 flex items-center justify-center bg-black/60 text-sm font-semibold text-white"><Loader2 className="mr-2 size-4 animate-spin" />Comprimindo…</span>}
       </label>
       <input ref={input} id={id} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" className="sr-only" onChange={(e) => void onPick(e.target.files?.[0])} />
-      {info && <p className="text-[11px] text-brand-green">Imagem otimizada: {info}</p>}
+      {info && <p className="text-[11px] text-brand-green">{compact ? `Otimizada: ${info.split(" • ")[0]}` : `Imagem otimizada: ${info}`}</p>}
       {error && <p role="alert" className="text-[11px] text-destructive">{error}</p>}
       {!info && !error && hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>

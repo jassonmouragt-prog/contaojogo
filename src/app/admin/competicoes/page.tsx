@@ -20,7 +20,7 @@ async function List() {
       {rows.map((c) => (
         <li key={c.id}>
           <Link href={`/admin/competicoes/${c.id}`} className="flex items-center gap-4 rounded-2xl border bg-card p-4 transition-colors hover:border-brand-amber/50">
-            <TeamCrest name={c.name} size={44} />
+            <TeamCrest name={c.name} src={c.logoUrl} size={44} />
             <span className="min-w-0 flex-1">
               <span className="block truncate font-display text-lg font-bold uppercase">{c.name} <span className="text-muted-foreground">{c.season}</span></span>
               <span className="block text-xs text-muted-foreground">{MODALITY_LABEL[c.modality]} • {c.teamCount} equipes{c.currentPhase ? ` • ${c.currentPhase}` : ""}</span>

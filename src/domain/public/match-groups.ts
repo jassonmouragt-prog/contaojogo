@@ -7,14 +7,20 @@ import { toLocalDay } from "@/lib/format";
 /** Agrupa jogos por competição e dia (lista estilo Flashscore). */
 export function groupMatchesForCenter(rows: MatchListItem[], now: number): MatchCenterGroup[] {
   const map = new Map<string, MatchCenterGroup>();
+  const today = toLocalDay(new Date(now));
+  const seen = new Set<string>();
   for (const m of rows) {
-    const day = toLocalDay(m.scheduledAt);
+    if (seen.has(m.id)) continue;
+    seen.add(m.id);
+    // Jogo ao vivo aparece em "hoje", mesmo que tenha sido agendado para outro dia.
+    const day = m.status === "LIVE" ? today : toLocalDay(m.scheduledAt);
     const key = `${m.competitionId}|${day}`;
     let g = map.get(key);
     if (!g) {
       g = {
         competitionId: m.competitionId,
         competitionName: m.competitionName,
+        logoUrl: m.competitionLogo,
         subtitle: [m.phaseName, m.groupName].filter(Boolean).join(" • ") || undefined,
         href: `/campeonatos/${m.competitionSlug}`,
         day,

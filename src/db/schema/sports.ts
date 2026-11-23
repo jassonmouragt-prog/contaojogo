@@ -78,6 +78,7 @@ export const athletes = pgTable(
     teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     nickname: text("nickname"),
+    photoUrl: text("photo_url"),
     position: positionEnum("position"),
     shirtNumber: smallint("shirt_number"),
     /** Dado pessoal: nunca exibido no portal público. */
@@ -104,6 +105,7 @@ export const competitions = pgTable(
     modality: modalityEnum("modality").notNull().default("FIELD"),
     status: competitionStatusEnum("status").notNull().default("DRAFT"),
     city: text("city"),
+    logoUrl: text("logo_url"),
     description: text("description"),
     periodMinutes: smallint("period_minutes").notNull().default(45),
     pointsWin: smallint("points_win").notNull().default(3),

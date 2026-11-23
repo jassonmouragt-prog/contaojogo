@@ -39,3 +39,10 @@ export function isUniqueViolation(e: unknown): boolean {
   const err = e as { code?: string; cause?: { code?: string } };
   return err?.code === "23505" || err?.cause?.code === "23505";
 }
+
+/** Imagem anexada no painel (/api/media/<id>) ou link https; vazio = sem imagem. */
+export function imageRefOrNull(v: string | undefined): string | null | false {
+  if (!v) return null;
+  if (/^\/api\/media\/[0-9a-f-]{36}$/i.test(v) || /^https:\/\//.test(v)) return v;
+  return false;
+}

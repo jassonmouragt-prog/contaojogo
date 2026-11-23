@@ -113,10 +113,10 @@ export async function getScorersBy(opts: ScopeOpts) {
   const ids = [...tally.keys()];
   if (ids.length === 0) return [];
   const people = await getDb()
-    .select({ id: athletes.id, name: athletes.name, nickname: athletes.nickname, shirtNumber: athletes.shirtNumber, teamName: teams.name, teamSlug: teams.slug, crestUrl: teams.crestUrl })
+    .select({ id: athletes.id, name: athletes.name, nickname: athletes.nickname, shirtNumber: athletes.shirtNumber, photoUrl: athletes.photoUrl, teamName: teams.name, teamSlug: teams.slug, crestUrl: teams.crestUrl })
     .from(athletes).leftJoin(teams, eq(teams.id, athletes.teamId)).where(inArray(athletes.id, ids));
   return people
-    .map((p) => ({ athleteId: p.id, name: p.nickname ?? p.name, shirtNumber: p.shirtNumber, teamName: p.teamName ?? "", teamSlug: p.teamSlug, crestUrl: p.crestUrl, ...tally.get(p.id)! }))
+    .map((p) => ({ athleteId: p.id, name: p.nickname ?? p.name, shirtNumber: p.shirtNumber, photoUrl: p.photoUrl, teamName: p.teamName ?? "", teamSlug: p.teamSlug, crestUrl: p.crestUrl, ...tally.get(p.id)! }))
     .filter((r) => r.goals + r.pending + r.assists > 0)
     .sort((a, b) => b.goals - a.goals || b.pending - a.pending || b.assists - a.assists || a.name.localeCompare(b.name, "pt-BR"));
 }

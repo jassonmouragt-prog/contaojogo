@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { listCompetitions } from "@/domain/competitions/queries";
 import { COMPETITION_STATUS_LABEL, MODALITY_LABEL } from "@/domain/labels";
 import { cn } from "@/lib/utils";
+import { TeamCrest } from "@/components/brand/team-crest";
 
 export const metadata = { title: "Campeonatos" };
 
@@ -39,12 +40,15 @@ async function List({ searchParams }: { searchParams: Promise<{ situacao?: strin
         <ul className="grid gap-3 sm:grid-cols-2">
           {rows.map((c) => (
             <li key={c.id}>
-              <Link href={`/campeonatos/${c.slug}`} className="block rounded-xl border bg-card p-4 transition-colors hover:border-brand-green/50">
+              <Link href={`/campeonatos/${c.slug}`} className="flex gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-brand-green/50">
+                <TeamCrest name={c.name} src={c.logoUrl} size={56} />
+                <span className="min-w-0 flex-1">
                 <p className="font-display text-xl font-bold uppercase">{c.name} <span className="text-muted-foreground">{c.season}</span></p>
                 <p className="mt-1 text-sm text-muted-foreground">{MODALITY_LABEL[c.modality]} • {c.teamCount} equipes{c.city ? ` • ${c.city}` : ""}</p>
                 <p className="mt-3 inline-block rounded-full bg-brand-deep px-2.5 py-1 text-[11px] font-bold uppercase text-brand-green">
                   {c.currentPhase ?? COMPETITION_STATUS_LABEL[c.status]}
                 </p>
+                </span>
               </Link>
             </li>
           ))}

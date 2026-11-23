@@ -2,6 +2,7 @@
 
 import { ActionForm } from "@/components/admin/action-form";
 import { SelectInput, SubmitButton, TextInput } from "@/components/admin/fields";
+import { ImageUpload } from "@/components/admin/image-upload";
 import { saveCompetition, togglePublished } from "@/domain/competitions/actions";
 import { COMPETITION_STATUS_LABEL, MODALITY_LABEL } from "@/domain/labels";
 
@@ -10,15 +11,18 @@ const opts = <T extends Record<string, string>>(o: T) => Object.entries(o).map((
 /** Cadastro: só o essencial. Pontuação e tempo de jogo têm padrão e ficam no Regulamento. */
 export function CompetitionCreateForm() {
   return (
-    <ActionForm action={saveCompetition} resetOnSuccess redirectTo="/admin/competicoes/:id" className="grid gap-4 sm:grid-cols-2">
+    <ActionForm action={saveCompetition} resetOnSuccess redirectTo="/admin/competicoes/:id" className="flex flex-col gap-4 sm:flex-row sm:items-start">
       {(pending) => (
         <>
+         <ImageUpload label="Logo / escudo" name="logoUrl" purpose="CREST" compact />
+         <div className="grid flex-1 gap-4 sm:grid-cols-2">
           <TextInput label="Nome da competição" name="name" required placeholder="Copa LIFAQUI" autoFocus />
           <TextInput label="Temporada" name="season" required defaultValue={String(new Date().getFullYear())} />
           <SelectInput label="Modalidade" name="modality" options={opts(MODALITY_LABEL)} defaultValue="FIELD" />
           <TextInput label="Cidade (opcional)" name="city" placeholder="Gaspar" />
           <p className="text-xs text-muted-foreground sm:col-span-2">Depois de criar, você inscreve as equipes, monta os grupos e agenda os jogos. A pontuação padrão (3 por vitória, 1 por empate) pode ser ajustada em Regulamento.</p>
           <div className="sm:col-span-2"><SubmitButton pending={pending}>Criar competição</SubmitButton></div>
+         </div>
         </>
       )}
     </ActionForm>
@@ -26,6 +30,7 @@ export function CompetitionCreateForm() {
 }
 
 type Values = {
+  logoUrl: string | null;
   id: string; name: string; season: string; modality: "FIELD" | "FUTSAL"; status: keyof typeof COMPETITION_STATUS_LABEL;
   city: string | null; description: string | null; periodMinutes: number; pointsWin: number; pointsDraw: number; pointsLoss: number; published: boolean;
 };
@@ -38,8 +43,10 @@ export function CompetitionRulesForm({ values }: { values: Values }) {
         <>
           <input type="hidden" name="id" value={values.id} />
           <input type="hidden" name="published" value={String(values.published)} />
-          <fieldset className="grid gap-4 sm:grid-cols-2">
+          <input type="hidden" name="keepLogo" value="1" />
+          <fieldset className="grid gap-4 sm:grid-cols-[auto_1fr_1fr]">
             <legend className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Dados</legend>
+            <div className="sm:row-span-3"><ImageUpload label="Logo / escudo" name="logoUrl" purpose="CREST" compact initialUrl={values.logoUrl} /></div>
             <TextInput label="Nome" name="name" required defaultValue={values.name} />
             <TextInput label="Temporada" name="season" required defaultValue={values.season} />
             <SelectInput label="Modalidade" name="modality" options={opts(MODALITY_LABEL)} defaultValue={values.modality} />

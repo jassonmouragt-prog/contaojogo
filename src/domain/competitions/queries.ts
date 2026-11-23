@@ -32,6 +32,7 @@ export const matchSelect = {
   competitionId: competitions.id,
   competitionName: competitions.name,
   competitionSlug: competitions.slug,
+  competitionLogo: competitions.logoUrl,
   periodMinutes: competitions.periodMinutes,
   phaseName: competitionPhases.name,
   groupName: competitionGroups.name,
@@ -71,6 +72,14 @@ export function listMatchesBetween(opts: { organizationId?: string | null; from:
     .orderBy(asc(competitions.name), asc(matches.scheduledAt));
 }
 
+/** Jogos em andamento (de qualquer data agendada) das competições publicadas. */
+export function listLiveMatches(opts: { organizationId?: string | null; publicOnly?: boolean } = {}) {
+  const filters = [eq(matches.status, "LIVE")];
+  if (opts.organizationId) filters.push(eq(matches.organizationId, opts.organizationId));
+  if (opts.publicOnly) filters.push(eq(competitions.published, true));
+  return matchQuery().where(and(...filters)).orderBy(asc(matches.scheduledAt));
+}
+
 export function listCompetitionMatches(competitionId: string) {
   return matchQuery().where(eq(matches.competitionId, competitionId)).orderBy(asc(matches.scheduledAt));
 }
@@ -99,6 +108,7 @@ export async function listCompetitions(opts: { organizationId?: string | null; p
       modality: competitions.modality,
       status: competitions.status,
       city: competitions.city,
+      logoUrl: competitions.logoUrl,
       published: competitions.published,
       teamCount: sql<number>`(select count(*)::int from competition_teams ct where ct.competition_id = "competitions"."id")`,
       currentPhase: sql<string | null>`(select cp.name from competition_phases cp where cp.competition_id = "competitions"."id" order by cp.sort_order desc limit 1)`,

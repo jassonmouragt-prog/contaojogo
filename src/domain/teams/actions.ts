@@ -12,6 +12,7 @@ import {
   fail,
   firstIssue,
   formObject,
+  imageRefOrNull,
   isUniqueViolation,
   requireOrg,
 } from "@/domain/shared/action-helpers";
@@ -23,6 +24,8 @@ const teamSchema = z.object({
   name: z.string({ error: "Informe o nome." }).min(2, "Nome muito curto.").max(80),
   shortName: z.string().max(20).optional(),
   city: z.string().max(80).optional(),
+  crestUrl: z.string().max(300).optional(),
+  keepCrest: z.string().optional(),
 });
 
 export async function saveTeam(_p: ActionResult, fd: FormData): Promise<ActionResult> {
@@ -30,8 +33,14 @@ export async function saveTeam(_p: ActionResult, fd: FormData): Promise<ActionRe
   const org = requireOrg(actor);
   const parsed = teamSchema.safeParse(formObject(fd));
   if (!parsed.success) return fail(firstIssue(parsed.error));
-  const { id, ...data } = parsed.data;
-  const values = { ...data, shortName: data.shortName ?? null, city: data.city ?? null, slug: slugify(data.name) };
+  const { id, crestUrl, keepCrest, ...data } = parsed.data;
+  const crest = imageRefOrNull(crestUrl);
+  if (crest === false) return fail("Escudo inválido.");
+  const values = {
+    ...data, shortName: data.shortName ?? null, city: data.city ?? null, slug: slugify(data.name),
+    // Na edição, sem nova imagem o escudo atual é mantido.
+    ...(crest || !id || !keepCrest ? { crestUrl: crest } : {}),
+  };
   if (!values.slug) return fail("Nome inválido.");
   try {
     const result = await getDb().transaction(async (tx) => {
@@ -63,6 +72,8 @@ const athleteSchema = z.object({
   shirtNumber: z.coerce.number().int().min(0).max(99).optional(),
   birthDate: z.iso.date().optional(),
   active: z.enum(["true", "false"]).optional(),
+  photoUrl: z.string().max(300).optional(),
+  keepPhoto: z.string().optional(),
 });
 
 export async function saveAthlete(_p: ActionResult, fd: FormData): Promise<ActionResult> {
@@ -70,8 +81,11 @@ export async function saveAthlete(_p: ActionResult, fd: FormData): Promise<Actio
   const org = requireOrg(actor);
   const parsed = athleteSchema.safeParse(formObject(fd));
   if (!parsed.success) return fail(firstIssue(parsed.error));
-  const { id, active, ...d } = parsed.data;
+  const { id, active, photoUrl, keepPhoto, ...d } = parsed.data;
+  const photo = imageRefOrNull(photoUrl);
+  if (photo === false) return fail("Foto inválida.");
   const values = {
+    ...(photo || !id || !keepPhoto ? { photoUrl: photo } : {}),
     teamId: d.teamId,
     name: d.name,
     nickname: d.nickname ?? null,
@@ -141,4 +155,37 @@ export async function setAthleteActive(_p: ActionResult, fd: FormData): Promise<
   });
   if (res?.id) revalidatePath(`/admin/equipes/${res.id}`);
   return res;
+}
+
+const bulkSchema = z.object({ teamId: z.uuid(), lines: z.string().min(2).max(10_000) });
+
+/**
+ * Cadastro rápido: um atleta por linha, número opcional no início.
+ * Ex.: "9 Pedro Lima", "10 - João Vitor", "Rafael".
+ */
+export async function bulkAddAthletes(_p: ActionResult, fd: FormData): Promise<ActionResult> {
+  const actor = await authorizeAction("competition.manage");
+  const org = requireOrg(actor);
+  const parsed = bulkSchema.safeParse(formObject(fd));
+  if (!parsed.success) return fail("Digite pelo menos um nome.");
+  const rows = parsed.data.lines
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const m = l.match(/^(\d{1,2})\s*[-–.:]?\s*(.+)$/);
+      return m ? { shirtNumber: Number(m[1]), name: m[2].trim() } : { shirtNumber: null, name: l };
+    })
+    .filter((r) => r.name.length >= 2 && r.name.length <= 80);
+  if (rows.length === 0) return fail("Nenhum nome válido.");
+  if (rows.length > 60) return fail("Máximo de 60 atletas por vez.");
+  const db = getDb();
+  const [team] = await db.select({ id: teams.id }).from(teams).where(and(eq(teams.id, parsed.data.teamId), eq(teams.organizationId, org)));
+  if (!team) return fail("Equipe não encontrada.");
+  await db.transaction(async (tx) => {
+    await tx.insert(athletes).values(rows.map((r) => ({ ...r, organizationId: org, teamId: team.id })));
+    await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "athlete.created", entityType: "team", entityId: team.id, after: { quantidade: rows.length } });
+  });
+  revalidatePath(`/admin/equipes/${team.id}`);
+  return { ok: true, message: `${rows.length} atleta(s) adicionado(s).` };
 }

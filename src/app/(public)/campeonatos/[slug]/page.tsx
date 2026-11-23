@@ -56,11 +56,14 @@ async function Central({ params, searchParams }: { params: Promise<{ slug: strin
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 px-3 py-6 sm:px-4">
-      <header className="bg-pitch-grid overflow-hidden rounded-2xl border bg-card p-5">
+      <header className="bg-pitch-grid flex items-center gap-5 overflow-hidden rounded-2xl border bg-card p-5">
+        <TeamCrest name={comp.name} src={comp.logoUrl} size={84} className="hidden sm:inline-flex" />
+        <div className="min-w-0">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-green">{COMPETITION_STATUS_LABEL[comp.status]}</p>
         <h1 className="mt-1 text-4xl font-extrabold uppercase leading-none sm:text-5xl">{comp.name} <span className="text-brand-green">{comp.season}</span></h1>
         <p className="mt-2 text-sm text-muted-foreground">{MODALITY_LABEL[comp.modality]}{currentPhase ? ` • fase: ${currentPhase}` : ""}{comp.city ? ` • ${comp.city}` : ""}</p>
         {comp.description && <p className="mt-3 max-w-2xl whitespace-pre-line text-sm text-foreground/80">{comp.description}</p>}
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

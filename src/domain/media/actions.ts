@@ -14,6 +14,8 @@ const PRESETS = {
   BANNER: { width: 1920, height: 1080, quality: 72 },
   LOGO: { width: 600, height: 600, quality: 82 },
   COVER: { width: 1280, height: 960, quality: 72 },
+  CREST: { width: 400, height: 400, quality: 82 },
+  PHOTO: { width: 600, height: 800, quality: 72 },
 } as const;
 type Purpose = keyof typeof PRESETS;
 
@@ -24,10 +26,11 @@ const MAX_UPLOAD = 10 * 1024 * 1024;
  * remove metadados (EXIF/GPS) e converte para WebP. Guarda só o resultado.
  */
 export async function uploadImage(fd: FormData): Promise<UploadResult> {
-  const actor = await authorizeAction("content.manage");
-  const org = requireOrg(actor);
   const file = fd.get("file");
   const purpose = String(fd.get("purpose")) as Purpose;
+  const actor = await authorizeAction(purpose === "CREST" || purpose === "PHOTO" ? "competition.manage" : "content.manage");
+  const org = requireOrg(actor);
+
   if (!(file instanceof File)) return { ok: false, message: "Selecione uma imagem." };
   if (!(purpose in PRESETS)) return { ok: false, message: "Uso inválido." };
   if (file.size > MAX_UPLOAD) return { ok: false, message: "Imagem acima de 10 MB." };

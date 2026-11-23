@@ -48,7 +48,7 @@ export function StandingsTables({ groups, qualify = 2 }: { groups: GroupStanding
   );
 }
 
-export function ScorersTable({ rows }: { rows: { athleteId: string; name: string; teamName: string; goals: number; assists: number; teamSlug?: string | null; crestUrl?: string | null }[] }) {
+export function ScorersTable({ rows }: { rows: { athleteId: string; name: string; teamName: string; goals: number; assists: number; teamSlug?: string | null; crestUrl?: string | null; photoUrl?: string | null }[] }) {
   if (rows.length === 0) return <p className="rounded-xl border border-dashed bg-card/60 p-6 text-center text-sm text-muted-foreground">Nenhum gol em jogos confirmados.</p>;
   const podium = rows.filter((r) => r.goals > 0).slice(0, 3);
   return (
@@ -57,6 +57,8 @@ export function ScorersTable({ rows }: { rows: { athleteId: string; name: string
         <div className="grid grid-cols-3 items-end gap-2">
           {[podium[1], podium[0], podium[2]].map((p, i) => p && (
             <div key={p.athleteId} className={cn("rounded-xl border bg-card p-3 text-center", i === 1 && "border-brand-green/60 pb-6")}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {p.photoUrl ? <img src={p.photoUrl} alt="" className={cn("mx-auto mb-2 rounded-full object-cover ring-2", i === 1 ? "size-20 ring-brand-green" : "size-14 ring-border")} /> : null}
               <p className="font-display text-2xl font-extrabold text-brand-green">{i === 1 ? "1º" : i === 0 ? "2º" : "3º"}</p>
               <p className="truncate font-semibold">{p.name}</p>
               <p className="truncate text-xs text-muted-foreground">{p.teamName}</p>
@@ -76,7 +78,8 @@ export function ScorersTable({ rows }: { rows: { athleteId: string; name: string
                 <td className="tabular px-3 py-2 text-center text-muted-foreground">{i + 1}</td>
                 <td className="px-3 py-2">
                   <span className="flex items-center gap-2">
-                    <TeamCrest name={r.teamName || r.name} src={r.crestUrl ?? null} size={20} />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {r.photoUrl ? <img src={r.photoUrl} alt="" className="size-8 rounded-full object-cover" /> : <TeamCrest name={r.teamName || r.name} src={r.crestUrl ?? null} size={24} />}
                     <span className="min-w-0"><span className="block truncate font-semibold">{r.name}</span>
                       {r.teamSlug ? <Link href={`/equipes/${r.teamSlug}`} className="block truncate text-xs text-muted-foreground hover:text-brand-green">{r.teamName}</Link> : <span className="block truncate text-xs text-muted-foreground">{r.teamName}</span>}
                     </span>

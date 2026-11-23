@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { and, count, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { matches, supportTickets } from "@/db/schema";
-import { listMatchesBetween } from "@/domain/competitions/queries";
+import { listLiveMatches, listMatchesBetween } from "@/domain/competitions/queries";
 import { MATCH_STATUS_LABEL } from "@/domain/labels";
 import { requestNow } from "@/lib/clock-now";
 import { dayStart, toLocalDay } from "@/lib/format";
@@ -32,11 +32,13 @@ async function Dashboard() {
   const now = await requestNow();
   const today = toLocalDay(new Date(now));
   const org = user.organizationId ?? "";
-  const [todayGames, [pending], [tickets]] = await Promise.all([
+  const [todayList, liveList, [pending], [tickets]] = await Promise.all([
     listMatchesBetween({ organizationId: org, from: dayStart(today), to: new Date(dayStart(today).getTime() + 86_400_000) }),
+    listLiveMatches({ organizationId: org }),
     getDb().select({ n: count() }).from(matches).where(and(eq(matches.organizationId, org), eq(matches.status, "FINISHED"))),
     getDb().select({ n: count() }).from(supportTickets).where(and(eq(supportTickets.organizationId, org), eq(supportTickets.status, "OPEN"))),
   ]);
+  const todayGames = [...liveList, ...todayList.filter((g) => !liveList.some((l) => l.id === g.id))];
   const shortcuts = [
     { href: "/admin/competicoes", label: "Nova competição" },
     { href: "/admin/equipes", label: "Nova equipe" },

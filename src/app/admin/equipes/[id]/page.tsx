@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { AthleteCard } from "@/components/admin/athlete-card";
 import { Panel } from "@/components/admin/fields";
-import { AthleteActiveToggle, AthleteForm, TeamForm } from "@/components/admin/forms/team-forms";
-import { PageHeader } from "@/components/admin/page-header";
+import { AddAthletes, TeamForm } from "@/components/admin/forms/team-forms";
+import { EmptyState, PageHeader } from "@/components/admin/page-header";
 import { getTeamBy, listTeamAthletes } from "@/domain/competitions/queries";
-import { POSITION_LABEL } from "@/domain/labels";
-import { requirePermission } from "@/lib/auth/session";
 import { getScorersBy } from "@/domain/standings/queries";
+import { requirePermission } from "@/lib/auth/session";
 
 async function Detail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,28 +15,18 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
   const team = await getTeamBy({ id, organizationId: actor.organizationId });
   if (!team) notFound();
   const [squad, scorers] = await Promise.all([listTeamAthletes(team.id), getScorersBy({ teamId: team.id, includeUnconfirmed: true })]);
-  const byAthlete = new Map(scorers.map((s) => [s.athleteId, s]));
+  const stats = new Map(scorers.map((s) => [s.athleteId, s]));
+  const active = squad.filter((a) => a.active);
   return (
     <>
-      <PageHeader back={{ href: "/admin/equipes", label: "Equipes" }} title={team.name} description={team.city ?? undefined} />
+      <PageHeader back={{ href: "/admin/equipes", label: "Equipes" }} title={team.name} description={`${active.length} atleta(s) ativo(s)${team.city ? ` • ${team.city}` : ""}`} />
       <div className="grid gap-4">
-        <Panel title="Dados da equipe"><TeamForm values={team} /></Panel>
-        <Panel title={`Elenco • ${squad.filter((a) => a.active).length} atletas ativos`}>
-          <AthleteForm teamId={team.id} />
-          {squad.length > 0 && (
-            <ul className="mt-4 divide-y text-sm">
-              {squad.map((a) => (
-                <li key={a.id} className={`flex items-center gap-3 py-2 ${a.active ? "" : "opacity-50"}`}>
-                  <span className="tabular w-8 text-center font-mono font-bold text-brand-amber">{a.shirtNumber ?? "–"}</span>
-                  <span className="min-w-0 flex-1 truncate font-semibold">{a.name}</span>
-                  <span className="w-10 text-xs text-muted-foreground">{a.position ? POSITION_LABEL[a.position] : ""}</span>
-                  <span className="w-20 text-right text-xs" title="Gols oficiais (+ a confirmar)">
-                    <span className="font-mono text-sm font-bold text-brand-amber">{byAthlete.get(a.id)?.goals ?? 0}</span> gols
-                    {(byAthlete.get(a.id)?.pending ?? 0) > 0 && <span className="text-muted-foreground"> (+{byAthlete.get(a.id)!.pending})</span>}
-                  </span>
-                  <AthleteActiveToggle athlete={a} />
-                </li>
-              ))}
+        <Panel title="Dados da equipe"><TeamForm key={team.updatedAt.toISOString()} values={team} /></Panel>
+        <Panel title="Adicionar atletas"><AddAthletes teamId={team.id} /></Panel>
+        <Panel title={`Elenco (${squad.length})`}>
+          {squad.length === 0 ? <EmptyState title="Nenhum atleta ainda" text="Adicione um por vez com foto, ou cole a lista inteira acima." /> : (
+            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {squad.map((a) => <AthleteCard key={`${a.id}-${a.updatedAt.toISOString()}`} athlete={a} teamId={team.id} goals={stats.get(a.id)?.goals ?? 0} pending={stats.get(a.id)?.pending ?? 0} />)}
             </ul>
           )}
         </Panel>
@@ -47,7 +37,7 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
 
 export default function Page(props: PageProps<"/admin/equipes/[id]">) {
   return (
-    <Suspense fallback={<div className="h-60 animate-pulse rounded-xl bg-card" />}>
+    <Suspense fallback={<div className="h-60 animate-pulse rounded-2xl bg-card" />}>
       <Detail params={props.params} />
     </Suspense>
   );

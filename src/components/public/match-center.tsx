@@ -10,6 +10,7 @@ import { LiveRefresher } from "@/components/live/live-refresher";
 export type MatchCenterGroup = {
   competitionId: string;
   competitionName: string;
+  logoUrl?: string | null;
   subtitle?: string;
   href?: string;
   day: string;
@@ -74,7 +75,7 @@ export function MatchCenter({
         </div>
       ) : (
         visible.map((g) => (
-          <CompetitionGroup key={`${g.competitionId}-${g.day}`} name={g.competitionName} subtitle={g.subtitle} href={g.href}>
+          <CompetitionGroup key={`${g.competitionId}-${g.day}`} name={g.competitionName} subtitle={g.subtitle} href={g.href} logoUrl={g.logoUrl}>
             {g.matches.map((m) => (
               <MatchRow key={m.id} match={m} />
             ))}

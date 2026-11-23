@@ -26,6 +26,7 @@ import {
   fail,
   firstIssue,
   formObject,
+  imageRefOrNull,
   isUniqueViolation,
   requireOrg,
 } from "@/domain/shared/action-helpers";
@@ -64,6 +65,8 @@ const competitionSchema = z.object({
   pointsDraw: z.coerce.number().int().min(0).max(10).optional(),
   pointsLoss: z.coerce.number().int().min(0).max(10).optional(),
   published: z.enum(["true", "false"]).optional(),
+  logoUrl: z.string().max(300).optional(),
+  keepLogo: z.string().optional(),
 });
 
 export async function saveCompetition(_p: ActionResult, fd: FormData): Promise<ActionResult> {
@@ -71,7 +74,9 @@ export async function saveCompetition(_p: ActionResult, fd: FormData): Promise<A
   const org = requireOrg(actor);
   const parsed = competitionSchema.safeParse(formObject(fd));
   if (!parsed.success) return fail(firstIssue(parsed.error));
-  const { id, published, ...d } = parsed.data;
+  const { id, published, logoUrl, keepLogo, ...d } = parsed.data;
+  const logo = imageRefOrNull(logoUrl);
+  if (logo === false) return fail("Logo inválida.");
   const values = {
     ...d,
     // Novo cadastro: tempo padrão pela modalidade e pontuação 3/1/0 (ajustáveis no Regulamento).
@@ -80,6 +85,7 @@ export async function saveCompetition(_p: ActionResult, fd: FormData): Promise<A
     city: d.city ?? null,
     description: d.description ?? null,
     slug: slugify(`${d.name}`),
+    ...(logo || !id || !keepLogo ? { logoUrl: logo } : {}),
     ...(published ? { published: published === "true" } : {}),
   };
   try {

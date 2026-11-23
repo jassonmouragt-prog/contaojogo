@@ -1,4 +1,5 @@
 import { expect as baseExpect, test } from "@playwright/test";
+import sharp from "sharp";
 
 // Ações gravam no banco remoto com auditoria; damos folga à latência de rede.
 const expect = baseExpect.configure({ timeout: 15_000 });
@@ -26,17 +27,31 @@ test.describe("cadastro de competição e agenda", () => {
     await page.getByRole("button", { name: "Entrar" }).click();
     await page.waitForURL((u) => u.pathname === "/admin/equipes");
 
-    for (const [team, player, shirt] of [[home, "Pedro Lima", "9"], [away, "Ryan", "10"], [third, "Carlos", "5"]] as const) {
+    const crest = await sharp({ create: { width: 900, height: 900, channels: 4, background: "#1ee37b" } }).png().toBuffer();
+    for (const [team, player, shirt] of [[home, "Pedro Lima", "9"], [away, "Ryan", "10"]] as const) {
       await page.goto("/admin/equipes");
       await page.getByRole("button", { name: "Nova equipe" }).click();
+      await page.locator('input[type="file"]').setInputFiles({ name: "escudo.png", mimeType: "image/png", buffer: crest });
+      await expect(page.getByText(/Otimizada:/).first()).toBeVisible({ timeout: 30_000 });
       await page.getByLabel("Nome da equipe").fill(team);
-      await page.getByRole("button", { name: "Cadastrar" }).click();
+      await page.getByRole("button", { name: "Criar equipe e adicionar atletas" }).click();
       await page.waitForURL(/\/admin\/equipes\/[0-9a-f-]{36}$/);
+      await expect(page.getByAltText("Pré-visualização").first()).toBeVisible();
       await page.getByLabel("Nome do atleta").fill(player);
       await page.getByLabel("Camisa").fill(shirt);
-      await page.getByRole("button", { name: "Adicionar" }).click();
+      await page.getByRole("button", { name: "Adicionar atleta" }).click();
       await expect(page.getByText("Atleta cadastrado.").first()).toBeVisible();
     }
+    await page.goto("/admin/equipes");
+    await page.getByRole("button", { name: "Nova equipe" }).click();
+    await page.getByLabel("Nome da equipe").fill(third);
+    await page.getByRole("button", { name: "Criar equipe e adicionar atletas" }).click();
+    await page.waitForURL(/\/admin\/equipes\/[0-9a-f-]{36}$/);
+    await page.getByRole("button", { name: "Colar lista" }).click();
+    await page.getByLabel(/Um atleta por linha/).fill("5 Carlos\n7 - Marcos Silva");
+    await page.getByRole("button", { name: "Adicionar todos" }).click();
+    await expect(page.getByText("2 atleta(s) adicionado(s).").first()).toBeVisible();
+    await expect(page.getByText("Marcos Silva")).toBeVisible();
 
     await page.goto("/admin/locais");
     await page.getByRole("button", { name: "Novo local" }).click();
@@ -53,14 +68,14 @@ test.describe("cadastro de competição e agenda", () => {
     await expect(page.getByText("1. Inscrever as equipes").first()).toBeVisible();
     await page.goto(`${compUrl}?aba=equipes`);
 
-    for (const team of [home, away, third]) {
+    for (const [team, n] of [[home, 1], [away, 1], [third, 2]] as const) {
       await page.getByLabel("Equipe", { exact: true }).selectOption({ label: team });
       await page.getByRole("button", { name: "Inscrever com elenco" }).click();
-      await expect(page.getByText(`${team} inscrita com 1 atleta(s).`).first()).toBeVisible();
+      await expect(page.getByText(`${team} inscrita com ${n} atleta(s).`).first()).toBeVisible();
     }
 
     await page.goto(`${compUrl}?aba=jogos`);
-    const when = new Date(Date.now() + 60 * 60_000 - 3 * 3_600_000).toISOString().slice(0, 16);
+    const when = new Date(Date.now() + 5 * 86_400_000 - 3 * 3_600_000).toISOString().slice(0, 16);
     const schedule = async (h: string, a: string) => {
       await page.getByLabel("Mandante").selectOption({ label: h });
       await page.getByLabel("Visitante").selectOption({ label: a });
@@ -79,8 +94,8 @@ test.describe("cadastro de competição e agenda", () => {
     await page.getByRole("button", { name: "Publicar no site" }).click();
     await expect(page.getByText("Competição publicada no site.").first()).toBeVisible();
 
-    await page.goto("/");
-    await expect(page.getByText(compName).first()).toBeVisible();
+    await page.goto("/campeonatos");
+    await page.getByRole("link", { name: new RegExp(compName) }).click();
     await page.getByRole("link", { name: new RegExp(home) }).first().click();
     await expect(page.getByText("Em breve").first()).toBeVisible();
     await expect(page.getByText(`Arena ${tag}`).first()).toBeVisible();
@@ -109,6 +124,13 @@ test.describe("cadastro de competição e agenda", () => {
     await pub.goto(matchUrl);
     await expect(pub.getByText(/Ao vivo/)).toBeVisible();
     await expect(pub.getByText("Bola rolando")).toBeVisible();
+
+    const homeTab = await page.context().newPage();
+    await homeTab.goto("/");
+    await expect(homeTab.locator("section", { hasText: compName.toUpperCase() }).getByText(home).first()).toBeVisible();
+    await homeTab.getByRole("tab", { name: /Ao vivo/ }).click();
+    await expect(homeTab.getByText(home).first()).toBeVisible();
+    await homeTab.close();
 
     await page.getByRole("button", { name: "+ GOL" }).click();
     await page.getByLabel("Atleta").selectOption({ label: "9 • Pedro Lima" });
