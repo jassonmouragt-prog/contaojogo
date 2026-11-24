@@ -205,7 +205,7 @@ function EventSheet({ type, props, defaultMinute, pending, onCancel, onSubmit }:
 }) {
   const [teamId, setTeamId] = useState(props.home.id);
   const players = props.roster.filter((r) => r.teamId === teamId);
-  const label = (r: Player) => `${r.shirtNumber ?? "–"} • ${r.nickname ?? r.name}`;
+  const label = (r: Player) => (r.shirtNumber != null ? `${r.shirtNumber} • ` : "") + (r.nickname ?? r.name);
   return (
     <form className="space-y-3 rounded-2xl border-2 border-brand-amber/60 bg-card p-4"
       onSubmit={(e) => {

@@ -143,7 +143,7 @@ async function Detail({ params, searchParams }: { params: Promise<{ id: string }
                   <li key={g.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
                     <span className="min-w-0">
                       <span className="font-semibold">{g.homeName} {g.status === "SCHEDULED" ? "x" : `${g.homeScore} x ${g.awayScore}`} {g.awayName}</span>
-                      <span className="block text-xs text-muted-foreground">{formatDateTime(g.scheduledAt)}{g.venueName ? ` • ${g.venueName}` : ""}{g.groupName ? ` • ${g.groupName}` : ""}{g.round ? ` • ${g.round}ª rodada` : ""}</span>
+                      <span className="block text-xs text-muted-foreground">{formatDateTime(g.scheduledAt)}{g.venueName ? ` • ${g.venueName}` : ""}{g.phaseName ? ` • ${g.phaseName}` : ""}{g.groupName ? ` • ${g.groupName}` : ""}{g.round ? ` • ${g.round}ª rodada` : ""}</span>
                     </span>
                     <span className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{MATCH_STATUS_LABEL[g.status]}</span>

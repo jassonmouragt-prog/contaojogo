@@ -64,6 +64,15 @@ test.describe("Fase 8 — engajamento, patrocínio, conteúdo e suporte", () => 
     await page.reload();
     await expect(page.locator("li", { hasText: `Laticínios ${tag}` })).toContainText("1 cliques");
 
+    // Editar o patrocinador sem recriar: nome muda, logo é mantido
+    const row = page.locator("li", { hasText: `Laticínios ${tag}` });
+    const oldLogo = await row.locator("img").first().getAttribute("src");
+    await row.getByRole("button", { name: "Editar" }).click();
+    await row.getByLabel("Nome", { exact: true }).fill(`Laticínios ${tag} Ltda`);
+    await row.getByRole("button", { name: "Salvar alterações" }).click();
+    await expect(page.getByText("Patrocinador salvo.").first()).toBeVisible();
+    await expect(page.locator("li", { hasText: `Laticínios ${tag} Ltda` }).locator("img").first()).toHaveAttribute("src", oldLogo!);
+
     // logo servido pelo próprio site, em WebP e com cache longo
     const logoSrc = await page.locator("li", { hasText: `Laticínios ${tag}` }).locator("img").getAttribute("src");
     expect(logoSrc).toMatch(/^\/api\/media\/[0-9a-f-]{36}$/);

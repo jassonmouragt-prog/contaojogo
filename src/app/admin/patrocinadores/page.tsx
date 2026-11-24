@@ -1,14 +1,14 @@
 import { Suspense } from "react";
 import { Panel } from "@/components/admin/fields";
 import { CreatePanel } from "@/components/admin/create-panel";
-import { SponsorForm, SponsorRowActions } from "@/components/admin/forms/engagement-forms";
+import { SponsorForm } from "@/components/admin/forms/engagement-forms";
+import { SponsorItem } from "@/components/admin/sponsor-item";
 import { PageHeader } from "@/components/admin/page-header";
 import { listSponsorsWithMetrics } from "@/domain/engagement/queries";
 import { requirePermission } from "@/lib/auth/session";
-import { formatDateTime } from "@/lib/datetime";
+import { formatDateTime, toLocalInput } from "@/lib/datetime";
 
 export const metadata = { title: "Patrocinadores" };
-const POS: Record<string, string> = { HOME: "Início", COMPETITION: "Competição", MATCH: "Partida" };
 const ctr = (c: number, i: number) => (i ? `${((c / i) * 100).toFixed(1).replace(".", ",")}%` : "–");
 
 async function List() {
@@ -17,24 +17,18 @@ async function List() {
   if (rows.length === 0) return <p className="text-sm text-muted-foreground">Nenhum patrocinador.</p>;
   return (
     <ul className="divide-y">
-      {rows.map((s) => (
-        <li key={s.id} className={`flex flex-wrap items-center gap-3 py-3 ${s.active ? "" : "opacity-60"}`}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={s.logoUrl} alt="" className="h-10 w-16 rounded bg-white object-contain p-1" />
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold">{s.name} <span className="text-xs text-muted-foreground">• {s.durationSeconds}s • {s.placements.map((p) => POS[p]).join(", ")}</span></p>
-            <p className="text-xs text-muted-foreground">
-              {s.startsAt ? `de ${formatDateTime(s.startsAt)} ` : ""}{s.endsAt ? `até ${formatDateTime(s.endsAt)}` : ""}
-              {!s.active && " • pausado"}
-            </p>
-          </div>
-          <div className="text-right text-xs">
-            <p><span className="font-mono font-bold text-brand-amber">{s.impressions}</span> visualizações • <span className="font-mono font-bold text-brand-amber">{s.clicks}</span> cliques ({ctr(s.clicks, s.impressions)})</p>
-            <p className="text-muted-foreground">7 dias: {s.impressions7d} / {s.clicks7d}</p>
-          </div>
-          <SponsorRowActions id={s.id} active={s.active} />
-        </li>
-      ))}
+      {rows.map((s) => {
+        const period = s.startsAt || s.endsAt
+          ? `${s.startsAt ? `De ${formatDateTime(s.startsAt)}` : "Já no ar"}${s.endsAt ? ` até ${formatDateTime(s.endsAt)}` : ", sem data para sair"}`
+          : "Sem data para sair";
+        const stats = `Total: ${s.impressions} visualizações e ${s.clicks} cliques (${ctr(s.clicks, s.impressions)} clicaram) · Últimos 7 dias: ${s.impressions7d} visualizações e ${s.clicks7d} cliques`;
+        return (
+          <SponsorItem key={s.id} period={period} stats={stats} s={{
+            id: s.id, name: s.name, logoUrl: s.logoUrl, linkUrl: s.linkUrl, durationSeconds: s.durationSeconds, placements: s.placements, active: s.active,
+            startsAt: s.startsAt ? toLocalInput(s.startsAt) : "", endsAt: s.endsAt ? toLocalInput(s.endsAt) : "",
+          }} />
+        );
+      })}
     </ul>
   );
 }

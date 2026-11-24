@@ -52,6 +52,13 @@ export function EnrollForm({ competitionId, teams, groups }: { competitionId: st
   );
 }
 
+/** Fases de mata-mata prontas; as que ainda não existem são criadas ao agendar. */
+export const KNOCKOUT_PRESETS = ["Oitavas de final", "Quartas de final", "Semifinal", "Disputa de 3º lugar", "Final"];
+function phaseChoices(phases: Opt[]): Opt[] {
+  const names = new Set(phases.map((p) => p.label.toLowerCase()));
+  return [...phases, ...KNOCKOUT_PRESETS.filter((n) => !names.has(n.toLowerCase())).map((n) => ({ value: `new:${n}`, label: n }))];
+}
+
 /** Mantém data/local preenchidos após agendar: facilita cadastrar a rodada inteira. */
 export function MatchForm({ competitionId, teams, venues, phases, groups }: { competitionId: string; teams: Opt[]; venues: Opt[]; phases: Opt[]; groups: Opt[] }) {
   if (teams.length < 2) return <p className="text-sm text-muted-foreground">Inscreva pelo menos duas equipes para agendar jogos.</p>;
@@ -64,10 +71,12 @@ export function MatchForm({ competitionId, teams, venues, phases, groups }: { co
           <SelectInput label="Visitante" name="awayTeamId" options={teams} placeholder="Escolha…" required />
           <TextInput label="Data e hora (Brasília)" name="scheduledAt" type="datetime-local" required />
           <SelectInput label="Local" name="venueId" options={venues} placeholder="A definir" />
-          <SelectInput label="Fase" name="phaseId" options={phases} placeholder="—" />
-          <SelectInput label="Grupo" name="groupId" options={groups} placeholder="—" />
-          <TextInput label="Rodada" name="round" type="number" min={1} max={99} />
-          <TextInput label="Arbitragem" name="refereeName" placeholder="Nome do árbitro" />
+          <SelectInput label="Fase" name="phaseId" options={phaseChoices(phases)} placeholder="Fase normal / rodada" />
+          {groups.length > 0 && <SelectInput label="Grupo (se for fase de grupos)" name="groupId" options={groups} placeholder="—" />}
+          <TextInput label="Rodada (opcional)" name="round" type="number" min={1} max={99} />
+          <TextInput label="Árbitro" name="referee" placeholder="Nome do árbitro" />
+          <TextInput label="Auxiliar 1" name="assistant1" placeholder="Nome do 1º auxiliar" />
+          <TextInput label="Auxiliar 2" name="assistant2" placeholder="Nome do 2º auxiliar" />
           <div className="flex items-end"><SubmitButton pending={pending}>Agendar jogo</SubmitButton></div>
         </>
       )}

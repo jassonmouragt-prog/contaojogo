@@ -71,6 +71,32 @@ export async function updateSponsor(_p: ActionResult, fd: FormData): Promise<Act
   return res;
 }
 
+export async function editSponsor(_p: ActionResult, fd: FormData): Promise<ActionResult> {
+  const actor = await authorizeAction("content.manage");
+  const org = requireOrg(actor);
+  const raw = formObject(fd);
+  const id = z.uuid().safeParse(raw.id);
+  if (!id.success) return fail("Patrocinador inválido.");
+  // Sem nova imagem, o logo atual é mantido.
+  const parsed = sponsorSchema.extend({ logoUrl: imageRef.optional() }).safeParse({ ...raw, logoUrl: raw.logoUrl || undefined });
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  const placements = fd.getAll("placements").map(String).filter((p) => (SPONSOR_PLACEMENTS as readonly string[]).includes(p));
+  if (placements.length === 0) return fail("Escolha pelo menos uma posição.");
+  const d = parsed.data;
+  const res = await getDb().transaction(async (tx) => {
+    const [row] = await tx.update(sponsors).set({
+      name: d.name, linkUrl: d.linkUrl ?? null, durationSeconds: d.durationSeconds, startsAt: d.startsAt, endsAt: d.endsAt, placements,
+      ...(d.logoUrl ? { logoUrl: d.logoUrl } : {}),
+    }).where(and(eq(sponsors.id, id.data), eq(sponsors.organizationId, org))).returning({ id: sponsors.id });
+    if (!row) return fail("Patrocinador não encontrado.");
+    await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "sponsor.edited", entityType: "sponsor", entityId: row.id, after: { name: d.name, placements } });
+    return { ok: true, message: "Patrocinador salvo." } as ActionResult;
+  });
+  revalidatePath("/admin/patrocinadores");
+  revalidatePath("/", "layout");
+  return res;
+}
+
 // ===== Notícias e documentos =====
 const newsSchema = z.object({
   title: z.string({ error: "Informe o título." }).min(4).max(140),

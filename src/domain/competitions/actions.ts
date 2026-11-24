@@ -219,15 +219,24 @@ export async function enrollTeam(_p: ActionResult, fd: FormData): Promise<Action
 
 const matchSchema = z.object({
   competitionId: z.uuid(),
-  phaseId: z.uuid().optional(),
+  phaseId: z.union([z.uuid(), z.enum(["Oitavas de final", "Quartas de final", "Semifinal", "Disputa de 3º lugar", "Final"].map((n) => `new:${n}`) as [string, ...string[]])]).optional(),
   groupId: z.uuid().optional(),
   round: z.coerce.number().int().min(1).max(99).optional(),
   homeTeamId: z.uuid("Escolha o mandante."),
   awayTeamId: z.uuid("Escolha o visitante."),
   venueId: z.uuid().optional(),
   scheduledAt: z.string({ error: "Informe data e hora." }),
-  refereeName: z.string().max(80).optional(),
+  referee: z.string().max(60).optional(),
+  assistant1: z.string().max(60).optional(),
+  assistant2: z.string().max(60).optional(),
 });
+
+/** "Fulano (árbitro) · Ciclano e Beltrano (auxiliares)". */
+function refereeLine(r?: string, a1?: string, a2?: string): string | null {
+  const aux = [a1, a2].map((v) => v?.trim()).filter(Boolean);
+  const parts = [r?.trim() ? `${r.trim()} (árbitro)` : "", aux.length ? `${aux.join(" e ")} (${aux.length > 1 ? "auxiliares" : "auxiliar"})` : ""].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
 
 export async function createMatch(_p: ActionResult, fd: FormData): Promise<ActionResult> {
   const actor = await authorizeAction("competition.manage");
@@ -253,9 +262,21 @@ export async function createMatch(_p: ActionResult, fd: FormData): Promise<Actio
       const [v] = await tx.select({ id: venues.id }).from(venues).where(and(eq(venues.id, d.venueId), eq(venues.organizationId, org)));
       if (!v) return fail("Local inválido.");
     }
-    if (d.phaseId) {
+    let phaseId: string | null = null;
+    if (d.phaseId?.startsWith("new:")) {
+      const name = d.phaseId.slice(4);
+      const existing = await tx.select({ id: competitionPhases.id, name: competitionPhases.name }).from(competitionPhases).where(eq(competitionPhases.competitionId, comp.id));
+      const found = existing.find((p) => p.name.toLowerCase() === name.toLowerCase());
+      if (found) phaseId = found.id;
+      else {
+        const [{ next }] = await tx.select({ next: sql<number>`coalesce(max(${competitionPhases.sortOrder}),0)+1` }).from(competitionPhases).where(eq(competitionPhases.competitionId, comp.id));
+        const [ph] = await tx.insert(competitionPhases).values({ competitionId: comp.id, name, type: "KNOCKOUT", sortOrder: next }).returning({ id: competitionPhases.id });
+        phaseId = ph.id;
+      }
+    } else if (d.phaseId) {
       const [ph] = await tx.select({ id: competitionPhases.id }).from(competitionPhases).where(and(eq(competitionPhases.id, d.phaseId), eq(competitionPhases.competitionId, comp.id)));
       if (!ph) return fail("Fase inválida.");
+      phaseId = ph.id;
     }
     const slot = slotMinutesFor(comp.periodMinutes);
     const windowStart = new Date(scheduledAt.getTime() - slot * 60_000);
@@ -291,14 +312,14 @@ export async function createMatch(_p: ActionResult, fd: FormData): Promise<Actio
       .values({
         organizationId: org,
         competitionId: comp.id,
-        phaseId: d.phaseId ?? null,
+        phaseId,
         groupId: d.groupId ?? null,
         round: d.round ?? null,
         homeTeamId: d.homeTeamId,
         awayTeamId: d.awayTeamId,
         venueId: d.venueId ?? null,
         scheduledAt,
-        refereeName: d.refereeName ?? null,
+        refereeName: refereeLine(d.referee, d.assistant1, d.assistant2),
       })
       .returning({ id: matches.id });
     await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "match.created", entityType: "match", entityId: row.id, after: { competition: comp.name, scheduledAt: scheduledAt.toISOString(), homeTeamId: d.homeTeamId, awayTeamId: d.awayTeamId }, ipAddress: await clientIp() });

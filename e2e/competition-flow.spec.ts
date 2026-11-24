@@ -14,7 +14,7 @@ test.describe("cadastro de competição e agenda", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "somente desktop"));
 
   test("admin monta a competição e o público vê o jogo", async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     const tag = Date.now().toString(36).slice(-5).toUpperCase();
     const home = `Mulungu ${tag}`;
     const away = `Gaspar ${tag}`;
@@ -28,7 +28,7 @@ test.describe("cadastro de competição e agenda", () => {
     await page.waitForURL((u) => u.pathname === "/admin/equipes");
 
     const crest = await sharp({ create: { width: 900, height: 900, channels: 4, background: "#1ee37b" } }).png().toBuffer();
-    for (const [team, player, shirt] of [[home, "Pedro Lima", "9"], [away, "Ryan", "10"]] as const) {
+    for (const [team, player] of [[home, "Pedro Lima"], [away, "Ryan"]] as const) {
       await page.goto("/admin/equipes");
       await page.getByRole("button", { name: "Nova equipe" }).click();
       await page.locator('input[type="file"]').setInputFiles({ name: "escudo.png", mimeType: "image/png", buffer: crest });
@@ -38,7 +38,7 @@ test.describe("cadastro de competição e agenda", () => {
       await page.waitForURL(/\/admin\/equipes\/[0-9a-f-]{36}$/);
       await expect(page.getByAltText("Pré-visualização").first()).toBeVisible();
       await page.getByLabel("Nome do atleta").fill(player);
-      await page.getByLabel("Camisa").fill(shirt);
+      await page.getByLabel("Posição").selectOption({ label: "Lateral esquerdo" });
       await page.getByRole("button", { name: "Adicionar atleta" }).click();
       await expect(page.getByText("Atleta cadastrado.").first()).toBeVisible();
     }
@@ -83,10 +83,25 @@ test.describe("cadastro de competição e agenda", () => {
       await page.getByLabel("Local").selectOption({ label: `Arena ${tag}` });
       await page.getByRole("button", { name: "Agendar jogo" }).click();
     };
+    await page.getByLabel("Árbitro").fill("Anderson Daronco");
+    await page.getByLabel("Auxiliar 1").fill("Bruno Boschilia");
+    await page.getByLabel("Auxiliar 2").fill("Rodrigo Corrêa");
     await schedule(home, away);
     await expect(page.getByText("Jogo agendado.").first()).toBeVisible();
     await schedule(third, home); // formulário mantém data e local
     await expect(page.getByText(/Conflito: uma das equipes já joga/).first()).toBeVisible();
+    // Final: fase de mata-mata criada direto no cadastro do jogo (não entra na classificação)
+    await page.getByLabel("Mandante").selectOption({ label: third });
+    await page.getByLabel("Visitante").selectOption({ label: away });
+    await page.getByLabel("Data e hora (Brasília)").fill(new Date(Date.now() + 9 * 86_400_000 - 3 * 3_600_000).toISOString().slice(0, 16));
+    await page.getByLabel("Fase").selectOption({ label: "Final" });
+    await page.getByRole("button", { name: "Agendar jogo" }).click();
+    await expect(page.locator("[data-sonner-toast]", { hasText: "Jogo agendado." })).toBeVisible();
+    await expect(async () => {
+      await page.reload();
+      await expect(page.locator("li", { hasText: `${third} x ${away}` }).first()).toContainText("Final", { timeout: 3000 });
+    }).toPass({ timeout: 30_000 });
+    await expect(page.getByLabel("Fase").locator("option", { hasText: /^Final$/ })).toHaveCount(1);
 
     const draft = await page.request.get("/campeonatos");
     expect(await draft.text()).not.toContain(compName);
@@ -99,6 +114,8 @@ test.describe("cadastro de competição e agenda", () => {
     await page.getByRole("link", { name: new RegExp(home) }).first().click();
     await expect(page.getByText("Em breve").first()).toBeVisible();
     await expect(page.getByText(`Arena ${tag}`).first()).toBeVisible();
+    await expect(page.getByText("Anderson Daronco (árbitro) · Bruno Boschilia e Rodrigo Corrêa (auxiliares)")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Falar no WhatsApp" })).toHaveAttribute("href", "https://wa.me/5588999247743");
 
     await page.goto("/campeonatos");
     await page.getByRole("link", { name: new RegExp(compName) }).click();
@@ -133,7 +150,7 @@ test.describe("cadastro de competição e agenda", () => {
     await homeTab.close();
 
     await page.getByRole("button", { name: "+ GOL" }).click();
-    await page.getByLabel("Atleta").selectOption({ label: "9 • Pedro Lima" });
+    await page.getByLabel("Atleta").selectOption({ label: "Pedro Lima" });
     await page.getByLabel("Minuto").fill("18");
     await page.getByRole("button", { name: "Registrar" }).click();
     await ok("Evento registrado.");
@@ -154,7 +171,7 @@ test.describe("cadastro de competição e agenda", () => {
     // ===== Fase 7 — operador perde a internet e continua lançando =====
     await page.context().setOffline(true);
     await page.getByRole("button", { name: "+ AMARELO" }).click();
-    await page.getByLabel("Atleta").selectOption({ label: "9 • Pedro Lima" });
+    await page.getByLabel("Atleta").selectOption({ label: "Pedro Lima" });
     await page.getByLabel("Minuto").fill("30");
     await page.getByRole("button", { name: "Registrar" }).click();
     await expect(page.getByText(/Sem internet/).first()).toBeVisible();

@@ -3,31 +3,34 @@
 import { ActionForm } from "@/components/admin/action-form";
 import { ImageUpload } from "@/components/admin/image-upload";
 import { SelectInput, SubmitButton, TextInput } from "@/components/admin/fields";
-import { createDocument, createNews, createPoll, createSponsor, hideNomination, replyTicket, setFinalists, toggleNews, updateSponsor } from "@/domain/engagement/actions";
+import { createDocument, createNews, createPoll, createSponsor, hideNomination, replyTicket, setFinalists, toggleNews, updateSponsor, editSponsor } from "@/domain/engagement/actions";
 
 type Opt = { value: string; label: string };
 const small = "rounded-md border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50";
 
-export function SponsorForm() {
+export type SponsorInitial = { id: string; name: string; logoUrl: string; linkUrl: string | null; durationSeconds: number; startsAt: string; endsAt: string; placements: string[] };
+
+export function SponsorForm({ initial, onDone }: { initial?: SponsorInitial; onDone?: () => void } = {}) {
   return (
-    <ActionForm action={createSponsor} resetOnSuccess className="grid gap-3 sm:grid-cols-2">
+    <ActionForm action={initial ? editSponsor : createSponsor} resetOnSuccess={!initial} onSuccess={onDone} className="grid gap-3 sm:grid-cols-2">
       {(pending) => (
         <>
-          <TextInput label="Nome" name="name" required placeholder="Laticínios Richard" />
-          <ImageUpload label="Logo do patrocinador" name="logoUrl" purpose="LOGO" aspect="aspect-[3/2]" required hint="PNG com fundo transparente fica melhor." />
-          <TextInput label="Link ao clicar (site, WhatsApp ou Instagram)" name="linkUrl" type="url" placeholder="https://wa.me/55…" />
-          <TextInput label="Tempo na tela (segundos)" name="durationSeconds" type="number" min={2} max={30} defaultValue={4} />
-          <TextInput label="Exibir a partir de (dia e hora)" name="startsAt" type="datetime-local" hint="Vazio = já começa agora" />
-          <TextInput label="Exibir até (dia e hora)" name="endsAt" type="datetime-local" hint="Vazio = sem data para sair" />
+          {initial && <input type="hidden" name="id" value={initial.id} />}
+          <TextInput label="Nome" name="name" required placeholder="Laticínios Richard" defaultValue={initial?.name} />
+          <ImageUpload label="Logo do patrocinador" name="logoUrl" purpose="LOGO" aspect="aspect-[3/2]" required initialUrl={initial?.logoUrl} hint={initial ? "Envie outra imagem só se quiser trocar." : "PNG com fundo transparente fica melhor."} />
+          <TextInput label="Link ao clicar (site, WhatsApp ou Instagram)" name="linkUrl" type="url" placeholder="https://wa.me/55…" defaultValue={initial?.linkUrl ?? ""} />
+          <TextInput label="Tempo na tela (segundos)" name="durationSeconds" type="number" min={2} max={30} defaultValue={initial?.durationSeconds ?? 4} />
+          <TextInput label="Exibir a partir de (dia e hora)" name="startsAt" type="datetime-local" hint="Vazio = já começa agora" defaultValue={initial?.startsAt} />
+          <TextInput label="Exibir até (dia e hora)" name="endsAt" type="datetime-local" hint="Vazio = sem data para sair" defaultValue={initial?.endsAt} />
           <fieldset className="sm:col-span-2">
             <legend className="text-xs font-semibold text-muted-foreground">Posições</legend>
             <div className="mt-1 flex flex-wrap gap-4 text-sm">
               {[["HOME", "Início"], ["COMPETITION", "Competição"], ["MATCH", "Partida"]].map(([v, l]) => (
-                <label key={v} className="flex items-center gap-2"><input type="checkbox" name="placements" value={v} defaultChecked /> {l}</label>
+                <label key={v} className="flex items-center gap-2"><input type="checkbox" name="placements" value={v} defaultChecked={initial ? initial.placements.includes(v) : true} /> {l}</label>
               ))}
             </div>
           </fieldset>
-          <div className="sm:col-span-2"><SubmitButton pending={pending}>Cadastrar patrocinador</SubmitButton></div>
+          <div className="sm:col-span-2"><SubmitButton pending={pending}>{initial ? "Salvar alterações" : "Cadastrar patrocinador"}</SubmitButton></div>
         </>
       )}
     </ActionForm>

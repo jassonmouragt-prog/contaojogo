@@ -11,8 +11,10 @@ export const COMPETITION_STATUS_LABEL = {
   FINISHED: "Finalizado",
 } as const;
 export const PHASE_TYPE_LABEL = { LEAGUE: "Pontos corridos", GROUPS: "Grupos", KNOCKOUT: "Mata-mata" } as const;
-export const POSITION_LABEL = { GK: "GOL", DEF: "DEF", MID: "MEI", FWD: "ATA" } as const;
-export const POSITION_NAME = { GK: "Goleiro", DEF: "Defensor", MID: "Meio-campo", FWD: "Atacante" } as const;
+export const POSITION_LABEL = { GK: "GOL", LB: "LE", RB: "LD", DEF: "ZAG", MID: "MEI", FWD: "ATA" } as const;
+export const POSITION_NAME = { GK: "Goleiro", LB: "Lateral esquerdo", RB: "Lateral direito", DEF: "Zagueiro", MID: "Meio-campo", FWD: "Atacante" } as const;
+/** Ordem de exibição nos formulários. */
+export const POSITION_ORDER = ["GK", "LB", "RB", "DEF", "MID", "FWD"] as const;
 export const MATCH_STATUS_LABEL = {
   SCHEDULED: "Agendado",
   LIVE: "Ao vivo",

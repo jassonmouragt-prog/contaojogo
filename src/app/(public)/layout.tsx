@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { SiteFooter } from "@/components/brand/site-footer";
-import { FloatingSupport, MobileTabBar } from "@/components/brand/mobile-tab-bar";
+import { FloatingSupport, FloatingWhatsApp, MobileTabBar } from "@/components/brand/mobile-tab-bar";
 import { SiteHeader } from "@/components/brand/site-header";
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
@@ -12,6 +12,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       <Suspense fallback={null}>
         <MobileTabBar />
         <FloatingSupport />
+        <FloatingWhatsApp />
       </Suspense>
     </>
   );
