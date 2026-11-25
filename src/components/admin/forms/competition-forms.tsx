@@ -60,7 +60,7 @@ function phaseChoices(phases: Opt[]): Opt[] {
 }
 
 /** Mantém data/local preenchidos após agendar: facilita cadastrar a rodada inteira. */
-export function MatchForm({ competitionId, teams, venues, phases, groups }: { competitionId: string; teams: Opt[]; venues: Opt[]; phases: Opt[]; groups: Opt[] }) {
+export function MatchForm({ competitionId, teams, venues, phases, groups, futsal = false }: { competitionId: string; teams: Opt[]; venues: Opt[]; phases: Opt[]; groups: Opt[]; futsal?: boolean }) {
   if (teams.length < 2) return <p className="text-sm text-muted-foreground">Inscreva pelo menos duas equipes para agendar jogos.</p>;
   return (
     <ActionForm action={createMatch} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -74,9 +74,20 @@ export function MatchForm({ competitionId, teams, venues, phases, groups }: { co
           <SelectInput label="Fase" name="phaseId" options={phaseChoices(phases)} placeholder="Fase normal / rodada" />
           {groups.length > 0 && <SelectInput label="Grupo (se for fase de grupos)" name="groupId" options={groups} placeholder="—" />}
           <TextInput label="Rodada (opcional)" name="round" type="number" min={1} max={99} />
-          <TextInput label="Árbitro" name="referee" placeholder="Nome do árbitro" />
-          <TextInput label="Auxiliar 1" name="assistant1" placeholder="Nome do 1º auxiliar" />
-          <TextInput label="Auxiliar 2" name="assistant2" placeholder="Nome do 2º auxiliar" />
+          {futsal ? (
+            <>
+              <TextInput label="1º árbitro" name="referee" placeholder="Nome do 1º árbitro" />
+              <TextInput label="2º árbitro" name="assistant1" placeholder="Nome do 2º árbitro" />
+              <TextInput label="Anotador" name="assistant2" placeholder="Nome do anotador" />
+              <TextInput label="Cronometrista (mesário)" name="timekeeper" placeholder="Nome do cronometrista" />
+            </>
+          ) : (
+            <>
+              <TextInput label="Árbitro" name="referee" placeholder="Nome do árbitro" />
+              <TextInput label="Auxiliar 1" name="assistant1" placeholder="Nome do 1º auxiliar" />
+              <TextInput label="Auxiliar 2" name="assistant2" placeholder="Nome do 2º auxiliar" />
+            </>
+          )}
           <div className="flex items-end"><SubmitButton pending={pending}>Agendar jogo</SubmitButton></div>
         </>
       )}

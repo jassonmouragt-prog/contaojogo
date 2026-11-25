@@ -61,6 +61,8 @@ const competitionSchema = z.object({
   city: z.string().max(80).optional(),
   description: z.string().max(2000).optional(),
   periodMinutes: z.coerce.number().int().min(5, "Mínimo 5 minutos.").max(60, "Máximo 60 minutos.").optional(),
+  intervalMinutes: z.coerce.number().int().min(0).max(60, "Intervalo de até 60 minutos.").optional(),
+  timeoutsPerHalf: z.coerce.number().int().min(0).max(3).optional(),
   pointsWin: z.coerce.number().int().min(0).max(10).optional(),
   pointsDraw: z.coerce.number().int().min(0).max(10).optional(),
   pointsLoss: z.coerce.number().int().min(0).max(10).optional(),
@@ -81,6 +83,8 @@ export async function saveCompetition(_p: ActionResult, fd: FormData): Promise<A
     ...d,
     // Novo cadastro: tempo padrão pela modalidade e pontuação 3/1/0 (ajustáveis no Regulamento).
     periodMinutes: d.periodMinutes ?? (d.modality === "FUTSAL" ? 20 : 45),
+    intervalMinutes: d.intervalMinutes ?? (d.modality === "FUTSAL" ? 10 : 15),
+    timeoutsPerHalf: d.timeoutsPerHalf ?? 1,
     ...(id ? {} : { pointsWin: d.pointsWin ?? 3, pointsDraw: d.pointsDraw ?? 1, pointsLoss: d.pointsLoss ?? 0 }),
     city: d.city ?? null,
     description: d.description ?? null,
@@ -229,7 +233,15 @@ const matchSchema = z.object({
   referee: z.string().max(60).optional(),
   assistant1: z.string().max(60).optional(),
   assistant2: z.string().max(60).optional(),
+  timekeeper: z.string().max(60).optional(),
 });
+
+/** Futsal: "Fulano (1º árbitro) · Ciclano (2º árbitro) · Beltrano (anotador) · Sicrano (cronometrista)". */
+function futsalRefereeLine(r?: string, r2?: string, scorer?: string, timer?: string): string | null {
+  const parts = [[r, "1º árbitro"], [r2, "2º árbitro"], [scorer, "anotador"], [timer, "cronometrista"]]
+    .filter(([n]) => n?.trim()).map(([n, role]) => `${n!.trim()} (${role})`);
+  return parts.length ? parts.join(" · ") : null;
+}
 
 /** "Fulano (árbitro) · Ciclano e Beltrano (auxiliares)". */
 function refereeLine(r?: string, a1?: string, a2?: string): string | null {
@@ -319,7 +331,7 @@ export async function createMatch(_p: ActionResult, fd: FormData): Promise<Actio
         awayTeamId: d.awayTeamId,
         venueId: d.venueId ?? null,
         scheduledAt,
-        refereeName: refereeLine(d.referee, d.assistant1, d.assistant2),
+        refereeName: comp.modality === "FUTSAL" ? futsalRefereeLine(d.referee, d.assistant1, d.assistant2, d.timekeeper) : refereeLine(d.referee, d.assistant1, d.assistant2),
       })
       .returning({ id: matches.id });
     await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "match.created", entityType: "match", entityId: row.id, after: { competition: comp.name, scheduledAt: scheduledAt.toISOString(), homeTeamId: d.homeTeamId, awayTeamId: d.awayTeamId }, ipAddress: await clientIp() });

@@ -36,6 +36,9 @@ type MatchLike = {
   rollingMs: number;
   stoppedMs: number;
   periodMinutes: number;
+  modality?: "FIELD" | "FUTSAL";
+  homePens?: number | null;
+  awayPens?: number | null;
   version?: number;
   homeName: string;
   homeCrest: string | null;
@@ -75,9 +78,10 @@ export function toMatchRow(m: MatchLike, now: number, href?: string): MatchRowDa
     href,
     status,
     kickoffTime: formatTime(m.scheduledAt),
-    liveLabel: status === "live" ? snapshot(clockStateOf(m), now, { periodMinutes: m.periodMinutes }).label : undefined,
-    clock: status === "live" ? { state: clockStateOf(m), periodMinutes: m.periodMinutes } : undefined,
+    liveLabel: status === "live" ? snapshot(clockStateOf(m), now, { periodMinutes: m.periodMinutes, futsal: m.modality === "FUTSAL" }).label : undefined,
+    clock: status === "live" ? { state: clockStateOf(m), periodMinutes: m.periodMinutes, futsal: m.modality === "FUTSAL" } : undefined,
     version: m.version,
+    pens: m.homePens != null && m.awayPens != null ? { home: m.homePens, away: m.awayPens } : null,
     home: { name: m.homeName, crest: m.homeCrest, score: m.homeScore },
     away: { name: m.awayName, crest: m.awayCrest, score: m.awayScore },
   };

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { MatchConsole } from "@/components/operator/match-console";
@@ -27,17 +28,24 @@ async function Console({ params }: { params: Promise<{ id: string }> }) {
   };
   return (
     <>
-      <p className="mb-3 text-center text-xs text-muted-foreground">{m.competitionName}{m.venueName ? ` • ${m.venueName}` : ""}</p>
+      <div className="mx-auto mb-3 flex max-w-xl items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>{m.competitionName}{m.venueName ? ` • ${m.venueName}` : ""}</span>
+        <Link href={`/admin/jogos/${m.id}/campinho`} className="rounded-lg border px-3 py-1.5 font-semibold text-foreground hover:bg-muted">Campinho (olheiro) →</Link>
+      </div>
       <MatchConsole
         matchId={m.id}
         version={m.version}
         status={m.status}
         clock={clockStateOf(m)}
         periodMinutes={m.periodMinutes}
+        modality={m.modality}
+        intervalMinutes={m.intervalMinutes}
+        timeoutsPerHalf={m.timeoutsPerHalf}
+        knockout={m.phaseType === "KNOCKOUT"}
         home={{ id: m.homeId, name: m.homeName, score: m.homeScore }}
         away={{ id: m.awayId, name: m.awayName, score: m.awayScore }}
         roster={roster}
-        events={events.map((e) => ({ id: e.id, clientEventId: e.clientEventId, type: e.type, teamId: e.teamId, minute: e.minute, athleteName: e.athleteNick ?? e.athleteName, voided: e.voidedAt !== null, ownGoal: e.detail.ownGoal, penalty: e.detail.penalty }))}
+        events={events.map((e) => ({ id: e.id, clientEventId: e.clientEventId, type: e.type, teamId: e.teamId, minute: e.minute, athleteName: e.athleteNick ?? e.athleteName, voided: e.voidedAt !== null, ownGoal: e.detail.ownGoal, penalty: e.detail.penalty, period: e.detail.period ?? null }))}
         stats={{ home: statOf(m.homeId), away: statOf(m.awayId) }}
         canConfirm={can(actor.role, "match.confirm")}
       />

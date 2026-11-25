@@ -36,11 +36,12 @@ export function useOutbox(matchId: string) {
       if ("error" in res) { toast.error(res.error); return; }
       await removeQueued(res.results.map((r) => r.clientOpId));
       res.results.filter((r) => r.outcome === "rejected").forEach((r) => toast.error(`Não aplicado: ${r.message}`));
-      const applied = res.results.filter((r) => r.outcome === "applied");
+      const plays = new Set(ops.filter((o) => o.kind === "play").map((o) => o.clientOpId));
+      const applied = res.results.filter((r) => r.outcome === "applied" && !plays.has(r.clientOpId));
       if (applied.length === 1) toast.success(applied[0].message);
       else if (applied.length > 1) toast.success(`${applied.length} lançamentos sincronizados.`);
       setState("idle");
-      router.refresh();
+      if (applied.length > 0) router.refresh();
     } catch {
       setState(navigator.onLine ? "idle" : "offline"); // sem rede: tenta de novo depois
     } finally {

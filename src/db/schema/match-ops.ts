@@ -3,7 +3,9 @@ import { check, index, jsonb, pgEnum, pgTable, smallint, text, timestamp, unique
 import { user } from "./auth";
 import { athletes, matches, teams } from "./sports";
 
-export const EVENT_TYPES = ["GOAL", "YELLOW", "RED", "SUB"] as const;
+/** FOUL = falta acumulada (futsal); TIMEOUT = tempo técnico; PENALTY_MISS = pênalti perdido no jogo;
+ * SHOOTOUT_* = cobranças da disputa de pênaltis (não entram no placar). */
+export const EVENT_TYPES = ["GOAL", "YELLOW", "RED", "SUB", "FOUL", "TIMEOUT", "PENALTY_MISS", "SHOOTOUT_GOAL", "SHOOTOUT_MISS"] as const;
 export const eventTypeEnum = pgEnum("match_event_type", EVENT_TYPES);
 
 export type EventDetail = {
@@ -12,6 +14,8 @@ export type EventDetail = {
   assistAthleteId?: string | null;
   playerOutId?: string | null;
   note?: string;
+  /** Período em que o lance aconteceu (faltas acumuladas e tempo técnico zeram por tempo). */
+  period?: "FIRST_HALF" | "SECOND_HALF";
 };
 
 export const matchEvents = pgTable(
@@ -70,4 +74,30 @@ export const matchSyncOps = pgTable(
     appliedAt: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("match_sync_ops_uq").on(t.matchId, t.clientOpId)],
+);
+
+export const PLAY_KINDS = ["POSSESSION", "ATTACK", "DANGER", "SHOT", "SHOT_ON", "CORNER", "FREE_KICK", "THROW_IN", "GOAL_KICK"] as const;
+export type PlayKind = (typeof PLAY_KINDS)[number];
+
+/**
+ * Lances do campinho virtual (olheiro): posição da bola (0–1000 x 0–600,
+ * mandante ataca para a direita) e o tipo de lance. Só leitura no site.
+ */
+export const matchPlays = pgTable(
+  "match_plays",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    matchId: uuid("match_id").notNull().references(() => matches.id, { onDelete: "cascade" }),
+    teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "restrict" }),
+    kind: text("kind").$type<PlayKind>().notNull(),
+    x: smallint("x").notNull(),
+    y: smallint("y").notNull(),
+    clientOpId: text("client_op_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("match_plays_client_uq").on(t.matchId, t.clientOpId),
+    index("match_plays_match_idx").on(t.matchId, t.createdAt),
+    check("match_plays_xy_ck", sql`${t.x} between 0 and 1000 and ${t.y} between 0 and 600`),
+  ],
 );

@@ -1,0 +1,101 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { PLAY_LABEL, PitchGround, PitchLines } from "@/components/match/live-pitch";
+import type { PlayKind } from "@/db/schema/match-ops";
+import { newOpId } from "@/lib/offline/outbox";
+import { useOutbox } from "@/lib/offline/use-outbox";
+import { cn } from "@/lib/utils";
+
+type Team = { id: string; name: string };
+const stamp = () => Date.now();
+const ACTIONS: { kind: PlayKind; label: string; tone?: "hot" }[] = [
+  { kind: "POSSESSION", label: "Posse" },
+  { kind: "ATTACK", label: "Ataque" },
+  { kind: "DANGER", label: "Ataque perigoso", tone: "hot" },
+  { kind: "SHOT", label: "Chute fora" },
+  { kind: "SHOT_ON", label: "Chute no gol", tone: "hot" },
+  { kind: "CORNER", label: "Escanteio" },
+  { kind: "FREE_KICK", label: "Falta" },
+  { kind: "THROW_IN", label: "Lateral" },
+  { kind: "GOAL_KICK", label: "Tiro de meta" },
+];
+
+/**
+ * Painel do olheiro: toque no campo onde está a bola, escolha o time e o lance.
+ * Usa a mesma fila offline do operador (sem sinal, guarda e envia depois).
+ */
+export function ScoutPanel({ matchId, futsal, live, home, away }: { matchId: string; futsal: boolean; live: boolean; home: Team; away: Team }) {
+  const outbox = useOutbox(matchId);
+  const [pos, setPos] = useState({ x: 500, y: 300 });
+  const [team, setTeam] = useState(home.id);
+  const [log, setLog] = useState<{ id: string; text: string }[]>([]);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  function tap(e: React.PointerEvent<SVGSVGElement>) {
+    const r = svgRef.current!.getBoundingClientRect();
+    const x = Math.round(Math.max(0, Math.min(1000, ((e.clientX - r.left) / r.width) * 1000)));
+    const y = Math.round(Math.max(0, Math.min(600, ((e.clientY - r.top) / r.height) * 600)));
+    setPos({ x, y });
+    // Campo do adversário sugere quem ataca: o mandante ataca para a direita.
+  }
+
+  function send(kind: PlayKind) {
+    // Escanteio e tiro de meta vão para o canto/área certos automaticamente.
+    let { x, y } = pos;
+    const isHome = team === home.id;
+    if (kind === "CORNER") { x = isHome ? 975 : 25; y = y < 300 ? 25 : 575; }
+    if (kind === "GOAL_KICK") { x = isHome ? 80 : 920; y = 300; }
+    if (kind === "THROW_IN") y = y < 300 ? 22 : 578;
+    setPos({ x, y });
+    const id = newOpId();
+    void outbox.push({ kind: "play", clientOpId: id, at: stamp(), teamId: team, play: kind, x, y });
+    setLog((l) => [{ id, text: `${PLAY_LABEL[kind]} · ${isHome ? home.name : away.name}` }, ...l].slice(0, 6));
+    if (navigator.vibrate) navigator.vibrate(15);
+  }
+
+  const queued = outbox.queued.length;
+  return (
+    <div className="mx-auto max-w-xl space-y-3">
+      {!live && <p className="rounded-xl border border-brand-amber/50 bg-brand-amber/10 px-4 py-2 text-sm font-semibold text-brand-amber">O campinho só envia lances com o jogo ao vivo (iniciado pelo operador).</p>}
+      {(queued > 0 || outbox.state === "offline") && (
+        <p role="status" className="rounded-xl border border-brand-amber/50 bg-brand-amber/10 px-4 py-2 text-sm font-semibold text-brand-amber">
+          {outbox.state === "offline" ? "Sem internet — " : ""}{queued} lance(s) aguardando envio. Pode continuar.
+        </p>
+      )}
+      <div className="overflow-hidden rounded-2xl border">
+        <svg ref={svgRef} viewBox="0 0 1000 600" className="block w-full cursor-crosshair touch-manipulation" onPointerDown={tap} aria-label="Toque onde está a bola">
+          <PitchGround futsal={futsal} id="scout" />
+          <PitchLines futsal={futsal} />
+          <circle cx={pos.x} cy={pos.y} r="20" fill="none" stroke={team === home.id ? "#1ee37b" : "#fff"} strokeWidth="6" />
+          <circle cx={pos.x} cy={pos.y} r="9" fill="#fff" />
+          <text x="40" y="60" fill="rgba(255,255,255,.6)" fontSize="28" fontWeight="700">← {away.name}</text>
+          <text x="960" y="60" fill="rgba(255,255,255,.6)" fontSize="28" fontWeight="700" textAnchor="end">{home.name} →</text>
+        </svg>
+      </div>
+      <p className="text-center text-xs text-muted-foreground">{home.name} ataca para a direita →</p>
+      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Time com a bola">
+        {[home, away].map((t) => (
+          <button key={t.id} type="button" aria-pressed={team === t.id} onClick={() => setTeam(t.id)}
+            className={cn("h-12 truncate rounded-xl border-2 px-2 text-sm font-extrabold uppercase", team === t.id ? (t.id === home.id ? "border-brand-green text-brand-green" : "border-white text-white") : "text-muted-foreground")}>
+            {t.name}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {ACTIONS.map((a) => (
+          <button key={a.kind} type="button" disabled={!live} onClick={() => send(a.kind)}
+            className={cn("h-14 rounded-xl px-1 text-sm font-bold leading-tight active:scale-95 disabled:opacity-40", a.tone === "hot" ? "bg-brand-green text-primary-foreground" : "bg-surface-2")}>
+            {a.label}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">Gols, cartões e substituições continuam no painel do operador — o campinho anima esses lances sozinho.</p>
+      {log.length > 0 && (
+        <ul className="divide-y rounded-xl border bg-card text-sm">
+          {log.map((l) => <li key={l.id} className="px-4 py-2">{l.text}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+}

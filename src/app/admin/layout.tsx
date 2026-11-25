@@ -4,7 +4,7 @@ import { SignOutButton } from "@/components/admin/sign-out-button";
 import { Logo } from "@/components/brand/logo";
 import { StatusPill } from "@/components/brand/status-pill";
 import { ROLE_LABEL, can, type Permission } from "@/lib/auth/permissions";
-import { requirePermission } from "@/lib/auth/session";
+import { isPlatformOrg, requirePermission } from "@/lib/auth/session";
 
 export const metadata = { title: { default: "Painel", template: "%s • Admin Conta o Jogo" }, robots: { index: false } };
 
@@ -34,13 +34,19 @@ const NAV: { title: string; items: NavDef[] }[] = [
     { href: "/admin/configuracoes", label: "Configurações", icon: "settings", permission: "settings.manage" },
     { href: "/admin/conta", label: "Minha conta", icon: "me", permission: "admin.access" },
   ] },
+  { title: "Planos", items: [
+    { href: "/admin/assinaturas", label: "Assinaturas", icon: "chart", permission: "settings.manage" },
+    { href: "/admin/planos", label: "Planos", icon: "star", permission: "settings.manage" },
+  ] },
 ];
 
 async function AdminShell({ children }: { children: React.ReactNode }) {
   const user = await requirePermission("admin.access");
+  const platform = await isPlatformOrg(user.organizationId);
+  const PLATFORM_ONLY = new Set(["content.manage", "settings.manage"]);
   const groups: AdminNavGroup[] = NAV.map((g) => ({
     title: g.title,
-    items: g.items.filter((i) => can(user.role, i.permission)).map(({ href, label, icon }) => ({ href, label, icon })),
+    items: g.items.filter((i) => can(user.role, i.permission) && (platform || !PLATFORM_ONLY.has(i.permission))).map(({ href, label, icon }) => ({ href, label, icon })),
   })).filter((g) => g.items.length > 0);
   return (
     <div className="flex min-h-full flex-1 flex-col">

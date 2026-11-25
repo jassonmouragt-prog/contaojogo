@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requestNow } from "@/lib/clock-now";
 import { Suspense } from "react";
-import { LiveClocks, LiveMinute } from "@/components/live/live-minute";
+import { LiveMinute } from "@/components/live/live-minute";
+import { ShootoutBoard } from "@/components/match/shootout-board";
+import { LivePitch } from "@/components/match/live-pitch";
+import { listMatchPlays } from "@/domain/match/queries";
+import { FREE_KICK_FROM_FOUL, accumulatedFouls, shootoutState } from "@/domain/match/rules";
 import { LiveRefresher } from "@/components/live/live-refresher";
 import { realtimeEnabled } from "@/lib/realtime";
 import { SponsorSlot } from "@/components/engagement/sponsor-slot";
@@ -23,8 +27,13 @@ async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   if (!m) notFound();
   const comp = await getCompetitionBy({ id: m.competitionId, publicOnly: true });
   if (!comp) notFound();
-  const [events, stats] = await Promise.all([listMatchEvents(m.id), listMatchStats(m.id)]);
+  const [events, stats, plays] = await Promise.all([listMatchEvents(m.id), listMatchStats(m.id), listMatchPlays(m.id)]);
   const valid = events.filter((e) => !e.voidedAt);
+  const futsal = m.modality === "FUTSAL";
+  const flow = valid.map((e) => ({ type: e.type, teamId: e.teamId, voided: false, period: e.detail.period ?? null }));
+  const so = shootoutState(flow, m.homeId, m.awayId);
+  const hasShootout = so.home.length + so.away.length > 0;
+  const inPlay = m.period === "FIRST_HALF" || m.period === "SECOND_HALF";
   const hs = stats.find((x) => x.teamId === m.homeId);
   const as = stats.find((x) => x.teamId === m.awayId);
   const cards = (teamId: string, t: "YELLOW" | "RED") => valid.filter((e) => e.teamId === teamId && e.type === t).length;
@@ -34,7 +43,7 @@ async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
     .join(" • ");
   const live = m.status === "LIVE";
   const showScore = m.status === "LIVE" || m.status === "FINISHED" || m.status === "CONFIRMED";
-  const clock = snapshot(clockStateOf(m), now, { periodMinutes: m.periodMinutes });
+  const clock = snapshot(clockStateOf(m), now, { periodMinutes: m.periodMinutes, futsal });
   const tone = live ? "live" : m.status === "CONFIRMED" || m.status === "FINISHED" ? "finished" : "scheduled";
   const label = m.status === "SCHEDULED" ? "Em breve" : MATCH_STATUS_LABEL[m.status];
 
@@ -43,13 +52,16 @@ async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
       {m.status !== "CONFIRMED" && m.status !== "CANCELLED" && <LiveRefresher matches={[{ id: m.id, version: m.version }]} realtime={realtimeEnabled()} />}
       <div className="rounded-2xl border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <StatusPill tone={tone}>{live ? <>Ao vivo • <LiveMinute clock={clockStateOf(m)} periodMinutes={m.periodMinutes} fallback={clock.label} /></> : label}</StatusPill>
+          <StatusPill tone={tone}>{live ? <>Ao vivo • <LiveMinute clock={clockStateOf(m)} periodMinutes={m.periodMinutes} futsal={futsal} fallback={clock.label} />{futsal && inPlay ? (m.period === "FIRST_HALF" ? " • 1º T" : " • 2º T") : ""}</> : label}</StatusPill>
           <Link href={`/campeonatos/${m.competitionSlug}`} className="text-xs text-muted-foreground hover:text-foreground">
             {m.competitionName}{m.phaseName ? ` • ${m.phaseName}` : ""}{m.groupName ? ` • ${m.groupName}` : ""}
           </Link>
         </div>
         {showScore ? (
-          <Scoreboard homeName={m.homeName} awayName={m.awayName} homeScore={m.homeScore} awayScore={m.awayScore} scorers={scorers || undefined} />
+          <>
+            <Scoreboard homeName={m.homeName} awayName={m.awayName} homeScore={m.homeScore} awayScore={m.awayScore} scorers={scorers || undefined} />
+            {m.homePens != null && m.awayPens != null && <p className="-mt-2 mb-3 text-center text-sm font-bold text-brand-green">Pênaltis: {m.homePens} x {m.awayPens}</p>}
+          </>
         ) : (
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 py-6">
             <Link href={`/equipes/${m.homeSlug}`} className="truncate text-right text-lg font-bold uppercase hover:text-brand-green">{m.homeName}</Link>
@@ -57,13 +69,39 @@ async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
             <Link href={`/equipes/${m.awaySlug}`} className="truncate text-lg font-bold uppercase hover:text-brand-green">{m.awayName}</Link>
           </div>
         )}
-        {live && <div className="mb-4"><LiveClocks clock={clockStateOf(m)} periodMinutes={m.periodMinutes} /></div>}
+        {futsal && live && inPlay && (
+          <div className="mb-4 grid grid-cols-2 gap-2 text-center">
+            {[[m.homeId, m.homeName], [m.awayId, m.awayName]].map(([tid, name]) => {
+              const f = accumulatedFouls(flow, tid, m.period);
+              return (
+                <div key={tid} className={`rounded-xl border p-2 ${f >= FREE_KICK_FROM_FOUL ? "border-brand-live/60 bg-brand-live/10" : "bg-background"}`}>
+                  <p className="truncate text-[11px] font-bold uppercase text-muted-foreground">Faltas • {name}</p>
+                  <p className="tabular font-mono text-2xl font-black">{f}</p>
+                  {f >= FREE_KICK_FROM_FOUL && <p className="text-[11px] font-bold text-brand-live">Tiro livre direto</p>}
+                </div>
+              );
+            })}
+          </div>
+        )}
         <dl className="grid gap-2 border-t pt-4 text-sm sm:grid-cols-3">
           <div><dt className="text-[11px] uppercase text-muted-foreground">Data</dt><dd className="font-semibold">{formatDateTime(m.scheduledAt)}</dd></div>
           <div><dt className="text-[11px] uppercase text-muted-foreground">Local</dt><dd className="font-semibold">{m.venueName ?? "A definir"}</dd></div>
-          <div><dt className="text-[11px] uppercase text-muted-foreground">Arbitragem</dt><dd className="font-semibold">{m.refereeName ?? "A definir"}</dd></div>
+          <div><dt className="text-[11px] uppercase text-muted-foreground">{futsal ? "Arbitragem e mesa" : "Arbitragem"}</dt><dd className="font-semibold">{m.refereeName ?? "A definir"}</dd></div>
         </dl>
       </div>
+      {(live || plays.length > 0) && (
+        <LivePitch matchId={m.id} futsal={futsal} live={live}
+          home={{ id: m.homeId, name: m.homeName }} away={{ id: m.awayId, name: m.awayName }}
+          score={[m.homeScore, m.awayScore]}
+          plays={plays.map((p) => ({ id: p.id, teamId: p.teamId, kind: p.kind, x: p.x, y: p.y }))}
+          events={valid.filter((e) => e.type === "GOAL" || e.type === "YELLOW" || e.type === "RED").map((e) => ({ id: e.id, type: e.type, teamId: e.teamId, minute: e.minute, ownGoal: !!e.detail.ownGoal }))} />
+      )}
+      {hasShootout && (
+        <section className="space-y-3 rounded-2xl border bg-card p-5">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Disputa de pênaltis</h2>
+          <ShootoutBoard size="lg" home={{ name: m.homeName, kicks: so.home }} away={{ name: m.awayName, kicks: so.away }} winner={so.winner} />
+        </section>
+      )}
       <SponsorSlot placement="MATCH" />
       {(hs || as) && (
         <section className="space-y-3 rounded-2xl border bg-card p-5">
@@ -76,13 +114,13 @@ async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
           <StatCompare label="Cartões vermelhos" home={cards(m.homeId, "RED")} away={cards(m.awayId, "RED")} />
         </section>
       )}
-      {valid.length > 0 && (
+      {valid.some((e) => e.type !== "FOUL" && !e.type.startsWith("SHOOTOUT")) && (
         <section className="overflow-hidden rounded-2xl border bg-card">
           <h2 className="bg-surface-2 px-5 py-2 text-xs font-bold uppercase tracking-wide">Linha do tempo</h2>
           <ul className="divide-y text-sm">
-            {valid.map((e) => {
+            {valid.filter((e) => e.type !== "FOUL" && e.type !== "SHOOTOUT_GOAL" && e.type !== "SHOOTOUT_MISS").map((e) => {
               const isHome = e.teamId === m.homeId;
-              const label = { GOAL: "⚽ Gol", YELLOW: "🟨 Cartão", RED: "🟥 Expulsão", SUB: "🔁 Substituição" }[e.type];
+              const label = { GOAL: e.detail.penalty ? "⚽ Gol de pênalti" : "⚽ Gol", YELLOW: "🟨 Cartão", RED: "🟥 Expulsão", SUB: "🔁 Substituição", TIMEOUT: "⏱ Tempo técnico", PENALTY_MISS: "❌ Pênalti perdido", FOUL: "", SHOOTOUT_GOAL: "", SHOOTOUT_MISS: "" }[e.type];
               return (
                 <li key={e.id} className={`flex items-center gap-3 px-5 py-2.5 ${isHome ? "" : "flex-row-reverse text-right"}`}>
                   <span className="tabular w-10 font-mono font-bold text-brand-green">{e.minute}&apos;</span>

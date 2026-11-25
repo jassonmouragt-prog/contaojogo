@@ -11,6 +11,7 @@ export const PUBLIC_NAV = [
   { href: "/noticias", label: "Notícias" },
   { href: "/indicacoes", label: "Indicações" },
   { href: "/suporte", label: "Suporte" },
+  { href: "/planos", label: "Planos" },
 ] as const;
 
 export function SiteHeader() {

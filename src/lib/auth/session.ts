@@ -4,9 +4,9 @@ import { headers } from "next/headers";
 import { forbidden, redirect } from "next/navigation";
 import { cache } from "react";
 import { getDb } from "@/db";
-import { user as userTable } from "@/db/schema";
+import { organizations, user as userTable } from "@/db/schema";
 import type { Role } from "@/db/schema/enums";
-import { getAuth } from "./server";
+import { DEFAULT_ORG_SLUG, getAuth } from "./server";
 import { can, hasRole, type Permission } from "./permissions";
 
 export type CurrentUser = {
@@ -47,9 +47,23 @@ export async function requireUser(next = "/admin"): Promise<CurrentUser> {
   return user;
 }
 
+/** Permissões que só valem na organização da plataforma (o portal é dela, não dos clubes assinantes). */
+const PLATFORM_ONLY: ReadonlySet<Permission> = new Set(["content.manage", "settings.manage"]);
+
+export const isPlatformOrg = cache(async (organizationId: string | null): Promise<boolean> => {
+  if (!organizationId) return false;
+  const [org] = await getDb().select({ slug: organizations.slug }).from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+  return org?.slug === DEFAULT_ORG_SLUG;
+});
+
+export async function canIn(user: CurrentUser, permission: Permission): Promise<boolean> {
+  if (!can(user.role, permission)) return false;
+  return PLATFORM_ONLY.has(permission) ? isPlatformOrg(user.organizationId) : true;
+}
+
 export async function requirePermission(permission: Permission, next = "/admin"): Promise<CurrentUser> {
   const user = await requireUser(next);
-  if (!can(user.role, permission)) forbidden();
+  if (!(await canIn(user, permission))) forbidden();
   return user;
 }
 
@@ -62,6 +76,6 @@ export async function requireRole(minimum: Role, next = "/admin"): Promise<Curre
 /** Para server actions: retorna erro em vez de redirecionar. */
 export async function authorizeAction(permission: Permission): Promise<CurrentUser> {
   const user = await getCurrentUser();
-  if (!user || !can(user.role, permission)) throw new Error("Não autorizado.");
+  if (!user || !(await canIn(user, permission))) throw new Error("Não autorizado.");
   return user;
 }

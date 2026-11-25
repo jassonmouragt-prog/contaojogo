@@ -18,7 +18,9 @@ export async function syncMatchOps(input: z.infer<typeof batchSchema>): Promise<
   if (!p.success) return { error: "Fila inválida." };
   const results: OpResult[] = [];
   for (const op of p.data.ops) results.push(await applyOp({ id: actor.id, organizationId: org }, p.data.matchId, op));
-  if (results.some((r) => r.outcome === "applied")) {
+  // Toques do campinho não precisam revalidar páginas (o site busca os lances à parte).
+  const kindOf = new Map(p.data.ops.map((o) => [o.clientOpId, o.kind]));
+  if (results.some((r) => r.outcome === "applied" && kindOf.get(r.clientOpId) !== "play")) {
     void publishMatchUpdate(p.data.matchId, Date.now());
     revalidatePath(`/admin/jogos/${p.data.matchId}`);
     revalidatePath(`/jogos/${p.data.matchId}`);

@@ -108,6 +108,9 @@ export const competitions = pgTable(
     logoUrl: text("logo_url"),
     description: text("description"),
     periodMinutes: smallint("period_minutes").notNull().default(45),
+    intervalMinutes: smallint("interval_minutes").notNull().default(15),
+    /** Futsal: pedidos de tempo técnico por equipe em cada tempo. */
+    timeoutsPerHalf: smallint("timeouts_per_half").notNull().default(1),
     pointsWin: smallint("points_win").notNull().default(3),
     pointsDraw: smallint("points_draw").notNull().default(1),
     pointsLoss: smallint("points_loss").notNull().default(0),
@@ -216,6 +219,9 @@ export const matches = pgTable(
     status: matchStatusEnum("status").notNull().default("SCHEDULED"),
     homeScore: smallint("home_score").notNull().default(0),
     awayScore: smallint("away_score").notNull().default(0),
+    /** Disputa de pênaltis (mata-mata empatado); null = não houve. */
+    homePens: smallint("home_pens"),
+    awayPens: smallint("away_pens"),
     refereeName: text("referee_name"),
     operatorId: text("operator_id").references(() => user.id, { onDelete: "set null" }),
     // Cronômetro persistido (ver src/domain/match/clock.ts)

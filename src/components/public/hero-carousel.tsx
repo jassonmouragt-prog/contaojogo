@@ -123,7 +123,7 @@ function TodaySlide({ s }: { s: Extract<HeroSlide, { kind: "TODAY" }> }) {
               <span className="flex min-w-0 items-center justify-end gap-2 text-right text-sm font-semibold text-white"><span className="truncate">{m.home.name}</span><TeamCrest name={m.home.name} src={m.home.crest} size={22} /></span>
               <span className={cn("tabular min-w-16 rounded-md px-2 py-1 text-center font-mono text-sm font-bold", m.status === "live" ? "bg-brand-live/20 text-brand-live" : m.status === "finished" ? "bg-white/10 text-white" : "bg-brand-green/15 text-brand-green")}>
                 {m.status === "scheduled" || m.status === "postponed" ? m.kickoffTime : `${m.home.score} - ${m.away.score}`}
-                {m.status === "live" && m.clock && <span className="block text-[10px]"><LiveMinute clock={m.clock.state} periodMinutes={m.clock.periodMinutes} fallback={m.liveLabel ?? ""} /></span>}
+                {m.status === "live" && m.clock && <span className="block text-[10px]"><LiveMinute clock={m.clock.state} periodMinutes={m.clock.periodMinutes} futsal={m.clock.futsal} fallback={m.liveLabel ?? ""} /></span>}
               </span>
               <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-white"><TeamCrest name={m.away.name} src={m.away.crest} size={22} /><span className="truncate">{m.away.name}</span></span>
             </Link>

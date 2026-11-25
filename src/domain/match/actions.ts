@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { competitions, matchStats, matches } from "@/db/schema";
+import { competitionPhases, competitions, matchStats, matches } from "@/db/schema";
 import { recordAudit } from "@/domain/audit/record";
 import { canTransition } from "@/domain/match/rules";
 import { type ActionResult, fail, requireOrg } from "@/domain/shared/action-helpers";
@@ -15,9 +15,10 @@ type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 async function lockMatch(tx: Tx, matchId: string, org: string) {
   const [m] = await tx
-    .select({ match: matches, periodMinutes: competitions.periodMinutes })
+    .select({ match: matches, periodMinutes: competitions.periodMinutes, phaseType: competitionPhases.type })
     .from(matches)
     .innerJoin(competitions, eq(competitions.id, matches.competitionId))
+    .leftJoin(competitionPhases, eq(competitionPhases.id, matches.phaseId))
     .where(and(eq(matches.id, matchId), eq(matches.organizationId, org)))
     .for("update", { of: matches });
   return m ?? null;
@@ -44,6 +45,8 @@ export async function finishMatch(input: { matchId: string }): Promise<ActionRes
     const m = row.match;
     if (!canTransition(m.status, "FINISHED")) return fail("O jogo não está em andamento.");
     if (m.period !== "FINISHED") return fail("Encerre o 2º tempo no cronômetro antes de fechar a súmula.");
+    if (row.phaseType === "KNOCKOUT" && m.homeScore === m.awayScore && (m.homePens == null || m.homePens === m.awayPens))
+      return fail("Jogo de mata-mata empatado: registre a disputa de pênaltis até ter um vencedor.");
     const stats = await tx.select().from(matchStats).where(eq(matchStats.matchId, m.id));
     if (stats.length < 2) return fail("Lance as estatísticas finais das duas equipes.");
     await tx.update(matches).set({ status: "FINISHED", version: m.version + 1 }).where(eq(matches.id, m.id));

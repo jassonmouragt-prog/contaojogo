@@ -134,13 +134,14 @@ test.describe("cadastro de competição e agenda", () => {
 
     await page.getByRole("button", { name: "Iniciar 1º tempo" }).click();
     await ok("Cronômetro atualizado.");
-    await expect(page.getByRole("button", { name: "Pausar (bola parada)" })).toBeVisible();
+    await expect(page.getByText("1º tempo").first()).toBeVisible();
+    await expect(page.getByText("Bola rolando", { exact: true })).toHaveCount(0); // sem cronômetro de bola rolando/parada
 
     // Público abre a partida ANTES do gol e não recarrega mais a página (Fase 5).
     const pub = await page.context().newPage();
     await pub.goto(matchUrl);
     await expect(pub.getByText(/Ao vivo/)).toBeVisible();
-    await expect(pub.getByText("Bola rolando")).toBeVisible();
+    await expect(pub.getByLabel("Campinho ao vivo")).toBeVisible();
 
     const homeTab = await page.context().newPage();
     await homeTab.goto("/");
@@ -159,6 +160,20 @@ test.describe("cadastro de competição e agenda", () => {
     // Atualização automática (polling 5s sem Ably / instantânea com Ably)
     await expect(pub.getByText("1 - 0")).toBeVisible({ timeout: 20_000 });
     await expect(pub.getByText("Pedro Lima 18'")).toBeVisible();
+
+    // Campinho: olheiro marca um ataque perigoso e o site recebe o lance
+    const matchId = matchUrl.split("/jogos/")[1];
+    const scout = await page.context().newPage();
+    await scout.goto(`/admin/jogos/${matchId}/campinho`);
+    await scout.getByLabel("Toque onde está a bola").click({ position: { x: 300, y: 100 } });
+    await scout.getByRole("button", { name: "Ataque perigoso" }).click();
+    await expect(scout.getByText(`Ataque perigoso · ${home}`)).toBeVisible();
+    await expect(async () => {
+      const r = await pub.request.get(`/api/public/plays?match=${matchId}`);
+      expect(((await r.json()) as { plays: { kind: string }[] }).plays.map((p) => p.kind)).toContain("DANGER");
+    }).toPass({ timeout: 20_000 });
+    await expect(pub.getByText(/Ataque perigoso/).first()).toBeVisible({ timeout: 15_000 });
+    await scout.close();
 
     // Estatísticas
     await page.getByRole("button", { name: `Aumentar Finalizações ${home}` }).click();

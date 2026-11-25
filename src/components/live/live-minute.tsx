@@ -2,7 +2,6 @@
 
 import { useSyncExternalStore } from "react";
 import { snapshot, type ClockState } from "@/domain/match/clock";
-import { formatClock } from "@/lib/format";
 
 // Relógio compartilhado: um único intervalo de 1s para todos os componentes.
 let current = Date.now();
@@ -32,29 +31,8 @@ function useTick(): number | null {
 }
 
 /** Minuto ao vivo calculado no navegador a partir do estado salvo (sem requisições). */
-export function LiveMinute({ clock, periodMinutes, fallback }: { clock: ClockState; periodMinutes: number; fallback: string }) {
+export function LiveMinute({ clock, periodMinutes, futsal, fallback }: { clock: ClockState; periodMinutes: number; futsal?: boolean; fallback: string }) {
   const now = useTick();
   if (now === null) return <>{fallback}</>;
-  return <>{snapshot(clock, now, { periodMinutes }).label}</>;
-}
-
-export function LiveClocks({ clock, periodMinutes }: { clock: ClockState; periodMinutes: number }) {
-  const now = useTick();
-  const s = snapshot(clock, now ?? clock.segmentStartedAt ?? 0, { periodMinutes });
-  return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      <div className="rounded-xl border bg-background p-3">
-        <p className="text-[11px] font-bold uppercase text-muted-foreground">Bola rolando</p>
-        <p className="tabular font-mono text-2xl font-bold text-brand-green">{now === null ? "--:--" : formatClock(s.rollingMs)}</p>
-      </div>
-      <div className="rounded-xl border bg-background p-3">
-        <p className="text-[11px] font-bold uppercase text-muted-foreground">Bola parada</p>
-        <p className="tabular font-mono text-2xl font-bold text-brand-amber">{now === null ? "--:--" : formatClock(s.stoppedMs)}</p>
-      </div>
-      <div className="col-span-2 rounded-xl border bg-background p-3 sm:col-span-1">
-        <p className="text-[11px] font-bold uppercase text-muted-foreground">Minuto</p>
-        <p className="tabular font-mono text-2xl font-bold text-brand-blue">{now === null ? "--" : s.label}</p>
-      </div>
-    </div>
-  );
+  return <>{snapshot(clock, now, { periodMinutes, futsal }).label}</>;
 }

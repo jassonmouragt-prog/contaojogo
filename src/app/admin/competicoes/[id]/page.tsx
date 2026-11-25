@@ -134,7 +134,7 @@ async function Detail({ params, searchParams }: { params: Promise<{ id: string }
       {tab === "jogos" && (
         <div className="grid gap-4">
           <Panel title="Agendar jogo">
-            <MatchForm competitionId={comp.id} teams={structure.enrolled.map((t) => ({ value: t.teamId, label: t.name }))} venues={venues.map((v) => ({ value: v.id, label: v.name }))} phases={phaseOpts} groups={groupOpts} />
+            <MatchForm competitionId={comp.id} teams={structure.enrolled.map((t) => ({ value: t.teamId, label: t.name }))} venues={venues.map((v) => ({ value: v.id, label: v.name }))} phases={phaseOpts} groups={groupOpts} futsal={comp.modality === "FUTSAL"} />
           </Panel>
           <Panel title={`Tabela de jogos (${games.length})`}>
             {games.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum jogo agendado.</p> : (

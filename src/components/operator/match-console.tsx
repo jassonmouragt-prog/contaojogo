@@ -3,20 +3,20 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ClockCard } from "@/components/brand/clock-card";
+import { ShootoutBoard } from "@/components/match/shootout-board";
 import { StatusPill } from "@/components/brand/status-pill";
 import { confirmMatch, finishMatch } from "@/domain/match/actions";
-import { computeScore } from "@/domain/match/rules";
+import { FREE_KICK_FROM_FOUL, accumulatedFouls, computeScore, shootoutState, timeoutsUsed } from "@/domain/match/rules";
 import { newOpId } from "@/lib/offline/outbox";
 import { useOutbox } from "@/lib/offline/use-outbox";
 import { ClockTransitionError, endPeriod, kickOff, setBallInPlay, snapshot, type ClockState } from "@/domain/match/clock";
 import type { ActionResult } from "@/domain/shared/action-helpers";
-import { formatClock } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Team = { id: string; name: string };
 type Player = { athleteId: string; name: string; nickname: string | null; teamId: string; shirtNumber: number | null };
-type Ev = { id: string; clientEventId: string; type: "GOAL" | "YELLOW" | "RED" | "SUB"; teamId: string; minute: number; athleteName: string | null; voided: boolean; ownGoal?: boolean; penalty?: boolean; pending?: boolean };
+type EvType = "GOAL" | "YELLOW" | "RED" | "SUB" | "FOUL" | "TIMEOUT" | "PENALTY_MISS" | "SHOOTOUT_GOAL" | "SHOOTOUT_MISS";
+type Ev = { id: string; clientEventId: string; type: EvType; teamId: string; minute: number; athleteName: string | null; voided: boolean; ownGoal?: boolean; penalty?: boolean; pending?: boolean; period?: string | null };
 type Stats = { shots: number; shotsOnTarget: number; corners: number; offsides: number };
 
 export type ConsoleProps = {
@@ -25,6 +25,10 @@ export type ConsoleProps = {
   status: "SCHEDULED" | "LIVE" | "FINISHED" | "CONFIRMED" | "POSTPONED" | "CANCELLED";
   clock: ClockState;
   periodMinutes: number;
+  modality: "FIELD" | "FUTSAL";
+  intervalMinutes: number;
+  timeoutsPerHalf: number;
+  knockout: boolean;
   home: Team & { score: number };
   away: Team & { score: number };
   roster: Player[];
@@ -36,7 +40,7 @@ export type ConsoleProps = {
 /** Horário do aparelho no momento do toque (enviado junto para a fila offline). */
 const stamp = () => Date.now();
 
-const EVENT_LABEL = { GOAL: "Gol", YELLOW: "Amarelo", RED: "Vermelho", SUB: "Substituição" } as const;
+export const EVENT_LABEL: Record<EvType, string> = { GOAL: "Gol", YELLOW: "Amarelo", RED: "Vermelho", SUB: "Substituição", FOUL: "Falta", TIMEOUT: "Tempo técnico", PENALTY_MISS: "Pênalti perdido", SHOOTOUT_GOAL: "Pênalti convertido (disputa)", SHOOTOUT_MISS: "Pênalti perdido (disputa)" };
 const ZERO: Stats = { shots: 0, shotsOnTarget: 0, corners: 0, offsides: 0 };
 
 function useNow(active: boolean) {
@@ -53,7 +57,8 @@ export function MatchConsole(props: ConsoleProps) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const outbox = useOutbox(props.matchId);
-  const [sheet, setSheet] = useState<Ev["type"] | null>(null);
+  const [sheet, setSheet] = useState<EvType | null>(null);
+  const futsal = props.modality === "FUTSAL";
 
   // ===== Estado otimista: servidor + fila local ainda não sincronizada =====
   let clockState = props.clock;
@@ -68,7 +73,9 @@ export function MatchConsole(props: ConsoleProps) {
         else clockState = setBallInPlay(clockState, op.command === "RESUME", op.at);
       } catch (e) { if (!(e instanceof ClockTransitionError)) throw e; }
     } else if (op.kind === "event") {
-      events = [...events, { id: op.clientOpId, clientEventId: op.clientOpId, type: op.type, teamId: op.teamId, minute: op.minute, athleteName: op.athleteId ? names.get(op.athleteId) ?? null : null, voided: false, ownGoal: op.ownGoal, penalty: op.penalty, pending: true }];
+      const inPlay = clockState.period === "FIRST_HALF" || clockState.period === "SECOND_HALF";
+      events = [...events, { id: op.clientOpId, clientEventId: op.clientOpId, type: op.type, teamId: op.teamId, minute: op.minute, athleteName: op.athleteId ? names.get(op.athleteId) ?? null : null, voided: false, ownGoal: op.ownGoal, penalty: op.penalty, pending: true, period: inPlay ? clockState.period : null }];
+      if (op.type === "TIMEOUT" && clockState.ballInPlay) { try { clockState = setBallInPlay(clockState, false, op.at); } catch {} }
     } else if (op.kind === "void") {
       events = events.map((e) => (e.clientEventId === op.targetClientOpId ? { ...e, voided: true, pending: true } : e));
     }
@@ -77,7 +84,7 @@ export function MatchConsole(props: ConsoleProps) {
   const score = computeScore(events.map((e) => ({ type: e.type, teamId: e.teamId, voided: e.voided, ownGoal: e.ownGoal })), props.home.id, props.away.id);
   const live = status === "LIVE";
   const now = useNow(live);
-  const snap = snapshot(clockState, now, { periodMinutes: props.periodMinutes });
+  const snap = snapshot(clockState, now, { periodMinutes: props.periodMinutes, futsal });
   const editable = status === "LIVE" || status === "FINISHED";
   const queuedCount = outbox.queued.length;
 
@@ -93,13 +100,23 @@ export function MatchConsole(props: ConsoleProps) {
     void outbox.push({ kind: "clock", clientOpId: newOpId(), at: stamp(), command });
 
   const p = clockState.period;
+  const inPlay = p === "FIRST_HALF" || p === "SECOND_HALF";
   const clockButtons: { label: string; cmd: Parameters<typeof clock>[0]; tone?: string }[] = [];
   if (status === "SCHEDULED" || (live && p === "NOT_STARTED")) clockButtons.push({ label: "Iniciar 1º tempo", cmd: "KICK_OFF" });
   if (live && p === "HALFTIME") clockButtons.push({ label: "Iniciar 2º tempo", cmd: "KICK_OFF" });
-  if (live && (p === "FIRST_HALF" || p === "SECOND_HALF")) {
-    clockButtons.push(clockState.ballInPlay ? { label: "Pausar (bola parada)", cmd: "PAUSE" } : { label: "Retomar (bola rolando)", cmd: "RESUME" });
+  if (live && inPlay) {
+    // Futsal: um único cronômetro de tempo corrido (para e volta com a bola).
+    if (futsal) clockButtons.push(clockState.ballInPlay ? { label: "⏸ Parar cronômetro", cmd: "PAUSE" } : { label: "▶ Bola rolando", cmd: "RESUME", tone: "go" });
     clockButtons.push({ label: p === "FIRST_HALF" ? "Encerrar 1º tempo" : "Encerrar 2º tempo", cmd: "END_PERIOD", tone: "danger" });
   }
+  const flow = events.map((e) => ({ type: e.type, teamId: e.teamId, voided: e.voided, period: e.period ?? null }));
+  const tied = score.home === score.away;
+  const showShootout = props.knockout && p === "FINISHED" && tied && (live || status === "FINISHED");
+  const so = shootoutState(flow, props.home.id, props.away.id);
+  const quick = (type: "FOUL" | "TIMEOUT", teamId: string) =>
+    void outbox.push({ kind: "event", clientOpId: newOpId(), at: stamp(), type, teamId, athleteId: null, minute: snap.minute ?? 0 });
+  const kick = (teamId: string, goal: boolean) =>
+    void outbox.push({ kind: "event", clientOpId: newOpId(), at: stamp(), type: goal ? "SHOOTOUT_GOAL" : "SHOOTOUT_MISS", teamId, athleteId: null, minute: props.periodMinutes * 2 });
 
   const visibleEvents = events.filter((e) => !e.voided);
   const lastEvent = visibleEvents.at(-1);
@@ -125,15 +142,16 @@ export function MatchConsole(props: ConsoleProps) {
           <p className="tabular font-mono text-5xl font-black text-brand-amber" aria-live="polite">{score.home} - {score.away}</p>
           <p className="truncate font-bold">{props.away.name}</p>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <ClockCard label="Bola rolando" value={formatClock(snap.rollingMs)} />
-          <ClockCard label="Bola parada" value={formatClock(snap.stoppedMs)} tone="amber" />
+        <div className="rounded-xl border bg-background py-3 text-center">
+          <p className="text-[11px] font-bold uppercase text-muted-foreground">{p === "FIRST_HALF" ? "1º tempo" : p === "SECOND_HALF" ? "2º tempo" : p === "HALFTIME" ? `Intervalo · ${props.intervalMinutes} min` : p === "FINISHED" ? "Fim do tempo normal" : "Cronômetro"}</p>
+          <p className={cn("tabular font-mono text-4xl font-black", futsal && inPlay && !clockState.ballInPlay ? "text-brand-amber" : "text-brand-green")}>{inPlay ? snap.label : futsal ? "00:00" : "—"}</p>
+          {futsal && inPlay && !clockState.ballInPlay && <p className="text-xs font-semibold text-brand-amber">Cronômetro parado</p>}
         </div>
         {clockButtons.length > 0 && (
           <div className="mt-3 grid grid-cols-2 gap-2">
             {clockButtons.map((b) => (
               <button key={b.label} disabled={pending} onClick={() => clock(b.cmd)}
-                className={cn("h-12 rounded-xl text-sm font-bold disabled:opacity-50", b.tone === "danger" ? "border border-destructive/50 text-destructive" : "bg-brand-amber text-black", clockButtons.length === 1 && "col-span-2")}>
+                className={cn("h-12 rounded-xl text-sm font-bold disabled:opacity-50", b.tone === "danger" ? "border border-destructive/50 text-destructive" : b.tone === "go" ? "bg-brand-green text-primary-foreground" : "bg-brand-amber text-black", clockButtons.length === 1 && "col-span-2")}>
                 {b.label}
               </button>
             ))}
@@ -147,7 +165,53 @@ export function MatchConsole(props: ConsoleProps) {
           <button onClick={() => setSheet("YELLOW")} className="h-14 rounded-xl bg-brand-amber text-base font-extrabold text-black">+ AMARELO</button>
           <button onClick={() => setSheet("RED")} className="h-14 rounded-xl border border-brand-live text-base font-extrabold text-brand-live">+ VERMELHO</button>
           <button onClick={() => setSheet("SUB")} className="h-14 rounded-xl border border-brand-blue text-base font-extrabold text-brand-blue">+ SUBSTITUIÇÃO</button>
+          <button onClick={() => setSheet("PENALTY_MISS")} className="col-span-2 h-12 rounded-xl border text-sm font-bold">+ Pênalti perdido</button>
         </div>
+      )}
+
+      {futsal && live && inPlay && (
+        <section className="overflow-hidden rounded-xl border bg-card">
+          <p className="bg-surface-2 px-4 py-2 text-xs font-bold uppercase tracking-wide">Faltas acumuladas e tempo técnico · {p === "FIRST_HALF" ? "1º tempo" : "2º tempo"}</p>
+          <div className="grid grid-cols-2 divide-x">
+            {[props.home, props.away].map((t) => {
+              const f = accumulatedFouls(flow, t.id, p);
+              const to = timeoutsUsed(flow, t.id, p);
+              return (
+                <div key={t.id} className="space-y-2 p-3 text-center">
+                  <p className="truncate text-sm font-bold">{t.name}</p>
+                  <p className={cn("tabular font-mono text-3xl font-black", f >= FREE_KICK_FROM_FOUL - 1 ? "text-brand-live" : "")}>{f}</p>
+                  <p className="text-[11px] text-muted-foreground">falta(s)</p>
+                  {f >= FREE_KICK_FROM_FOUL ? <p className="rounded bg-brand-live/15 px-1 py-0.5 text-[11px] font-bold text-brand-live">Tiro livre direto a cada falta</p>
+                    : f === FREE_KICK_FROM_FOUL - 1 ? <p className="text-[11px] font-bold text-brand-amber">Próxima falta: tiro livre direto</p> : null}
+                  <button onClick={() => quick("FOUL", t.id)} className="h-11 w-full rounded-lg bg-brand-amber text-sm font-bold text-black">+ Falta</button>
+                  <button disabled={to >= props.timeoutsPerHalf} onClick={() => quick("TIMEOUT", t.id)} className="h-10 w-full rounded-lg border text-xs font-bold disabled:opacity-40">
+                    Tempo técnico ({to}/{props.timeoutsPerHalf})
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {showShootout && (
+        <section className="overflow-hidden rounded-xl border-2 border-brand-green/60 bg-card">
+          <p className="bg-surface-2 px-4 py-2 text-xs font-bold uppercase tracking-wide">Disputa de pênaltis</p>
+          <div className="p-3">
+            <ShootoutBoard home={{ name: props.home.name, kicks: so.home }} away={{ name: props.away.name, kicks: so.away }} winner={so.winner} />
+            {!so.winner && status === "LIVE" && (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {[props.home, props.away].map((t) => (
+                  <div key={t.id} className="space-y-2">
+                    <p className="truncate text-center text-xs font-bold">{t.name}</p>
+                    <button onClick={() => kick(t.id, true)} className="h-11 w-full rounded-lg bg-brand-green text-sm font-bold text-primary-foreground">✓ Converteu</button>
+                    <button onClick={() => kick(t.id, false)} className="h-11 w-full rounded-lg border border-brand-live text-sm font-bold text-brand-live">✗ Perdeu</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       {sheet && (
@@ -177,7 +241,7 @@ export function MatchConsole(props: ConsoleProps) {
             {events.map((e) => (
               <li key={e.id} className={cn("flex items-center gap-3 px-4 py-2", e.voided && "line-through opacity-40")}>
                 <span className="tabular w-10 font-mono font-bold">{e.minute}&apos;</span>
-                <span className="flex-1">{EVENT_LABEL[e.type]}{e.ownGoal ? " (contra)" : ""}{e.penalty ? " (pênalti)" : ""} • {e.athleteName ?? "—"}</span>
+                <span className="flex-1">{EVENT_LABEL[e.type]}{e.ownGoal ? " (contra)" : ""}{e.penalty ? " (pênalti)" : ""}{e.athleteName ? ` • ${e.athleteName}` : ""}</span>
                 <span className="text-xs text-muted-foreground">{teamName(e.teamId)}</span>
                 {e.pending && <span className="rounded bg-brand-amber/20 px-1.5 text-[10px] font-bold text-brand-amber">PENDENTE</span>}
               </li>
@@ -200,8 +264,8 @@ export function MatchConsole(props: ConsoleProps) {
 }
 
 function EventSheet({ type, props, defaultMinute, pending, onCancel, onSubmit }: {
-  type: Ev["type"]; props: ConsoleProps; defaultMinute: number; pending: boolean; onCancel: () => void;
-  onSubmit: (d: { type: Ev["type"]; teamId: string; athleteId: string | null; minute: number; ownGoal?: boolean; penalty?: boolean; assistAthleteId?: string | null; playerOutId?: string | null }) => void;
+  type: EvType; props: ConsoleProps; defaultMinute: number; pending: boolean; onCancel: () => void;
+  onSubmit: (d: { type: EvType; teamId: string; athleteId: string | null; minute: number; ownGoal?: boolean; penalty?: boolean; assistAthleteId?: string | null; playerOutId?: string | null }) => void;
 }) {
   const [teamId, setTeamId] = useState(props.home.id);
   const players = props.roster.filter((r) => r.teamId === teamId);
@@ -221,8 +285,8 @@ function EventSheet({ type, props, defaultMinute, pending, onCancel, onSubmit }:
         ))}
       </div>
       <label className="block text-xs font-semibold text-muted-foreground">{type === "SUB" ? "Entra" : "Atleta"}
-        <select name="athleteId" required={type !== "GOAL"} className="mt-1 h-11 w-full rounded-lg border bg-background px-2 text-sm" key={teamId}>
-          <option value="">{type === "GOAL" ? "Não identificado" : "Escolha…"}</option>
+        <select name="athleteId" required={type !== "GOAL" && type !== "PENALTY_MISS"} className="mt-1 h-11 w-full rounded-lg border bg-background px-2 text-sm" key={teamId}>
+          <option value="">{type === "GOAL" || type === "PENALTY_MISS" ? "Não identificado" : "Escolha…"}</option>
           {players.map((r) => <option key={r.athleteId} value={r.athleteId}>{label(r)}</option>)}
         </select>
       </label>

@@ -15,8 +15,10 @@ export type MatchRowData = {
   /** Minuto ao vivo ("67'", "45+2'"). */
   liveLabel?: string;
   /** Estado do cronômetro para o minuto andar no navegador. */
-  clock?: { state: ClockState; periodMinutes: number };
+  clock?: { state: ClockState; periodMinutes: number; futsal?: boolean };
   version?: number;
+  /** Disputa de pênaltis, quando houve. */
+  pens?: { home: number; away: number } | null;
   home: { name: string; crest?: string | null; score?: number | null };
   away: { name: string; crest?: string | null; score?: number | null };
 };
@@ -58,6 +60,7 @@ export function MatchRow({ match }: { match: MatchRowData }) {
   const hasScore = status !== "scheduled" && status !== "postponed";
   const hs = home.score ?? 0;
   const as = away.score ?? 0;
+  const pens = match.pens;
   const finished = status === "finished";
 
   const content = (
@@ -73,11 +76,11 @@ export function MatchRow({ match }: { match: MatchRowData }) {
           live ? "font-bold text-brand-live" : "text-muted-foreground",
         )}
       >
-        {status === "live" ? (match.clock ? <LiveMinute clock={match.clock.state} periodMinutes={match.clock.periodMinutes} fallback={match.liveLabel ?? ""} /> : match.liveLabel) : statusText[status] || match.kickoffTime}
+        {status === "live" ? (match.clock ? <LiveMinute clock={match.clock.state} periodMinutes={match.clock.periodMinutes} futsal={match.clock.futsal} fallback={match.liveLabel ?? ""} /> : match.liveLabel) : statusText[status] || match.kickoffTime}
       </span>
       <span className="flex min-w-0 flex-col gap-1">
-        <TeamLine team={home} bold={finished && hs > as} dim={finished && hs < as} />
-        <TeamLine team={away} bold={finished && as > hs} dim={finished && as < hs} />
+        <TeamLine team={home} bold={finished && (hs > as || (!!pens && pens.home > pens.away))} dim={finished && (hs < as || (!!pens && pens.home < pens.away))} />
+        <TeamLine team={away} bold={finished && (as > hs || (!!pens && pens.away > pens.home))} dim={finished && (as < hs || (!!pens && pens.away < pens.home))} />
       </span>
       <span
         className={cn(
@@ -85,8 +88,8 @@ export function MatchRow({ match }: { match: MatchRowData }) {
           live ? "text-brand-live" : "text-foreground",
         )}
       >
-        <span>{hasScore ? hs : ""}</span>
-        <span>{hasScore ? as : ""}</span>
+        <span>{hasScore ? hs : ""}{pens && <sup className="ml-0.5 text-[10px] text-muted-foreground">({pens.home})</sup>}</span>
+        <span>{hasScore ? as : ""}{pens && <sup className="ml-0.5 text-[10px] text-muted-foreground">({pens.away})</sup>}</span>
       </span>
     </div>
   );

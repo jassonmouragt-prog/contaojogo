@@ -1,11 +1,11 @@
 import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
-import { competitions, matchEvents, matchStats, matchSyncOps, matches, rosterEntries } from "@/db/schema";
+import { competitionPhases, competitions, matchEvents, matchPlays, matchStats, matchSyncOps, matches, rosterEntries } from "@/db/schema";
 import { recordAudit } from "@/domain/audit/record";
 import { clockStateOf } from "@/domain/labels";
 import { ClockTransitionError, endPeriod, kickOff, setBallInPlay, type ClockState } from "@/domain/match/clock";
-import { canTransition, computeScore, validateStats } from "@/domain/match/rules";
+import { canTransition, computePens, computeScore, shootoutState, timeoutsUsed, validateStats } from "@/domain/match/rules";
 import { clampClientTime, shouldApplyStats, type SyncOutcome } from "@/domain/match/sync-rules";
 import type { MatchOp } from "@/domain/match/ops";
 
@@ -14,9 +14,10 @@ type Actor = { id: string; organizationId: string };
 
 export async function lockMatch(tx: Tx, matchId: string, org: string) {
   const [m] = await tx
-    .select({ match: matches, periodMinutes: competitions.periodMinutes })
+    .select({ match: matches, periodMinutes: competitions.periodMinutes, modality: competitions.modality, timeoutsPerHalf: competitions.timeoutsPerHalf, phaseType: competitionPhases.type })
     .from(matches)
     .innerJoin(competitions, eq(competitions.id, matches.competitionId))
+    .leftJoin(competitionPhases, eq(competitionPhases.id, matches.phaseId))
     .where(and(eq(matches.id, matchId), eq(matches.organizationId, org)))
     .for("update", { of: matches });
   return m ?? null;
@@ -38,7 +39,8 @@ async function recomputeScore(tx: Tx, m: typeof matches.$inferSelect) {
     .from(matchEvents)
     .where(eq(matchEvents.matchId, m.id));
   const s = computeScore(evs.map((e) => ({ type: e.type, teamId: e.teamId, voided: e.voidedAt !== null, ownGoal: e.detail.ownGoal })), m.homeTeamId, m.awayTeamId);
-  await tx.update(matches).set({ homeScore: s.home, awayScore: s.away }).where(eq(matches.id, m.id));
+  const pens = computePens(evs.map((e) => ({ type: e.type, teamId: e.teamId, voided: e.voidedAt !== null })), m.homeTeamId);
+  await tx.update(matches).set({ homeScore: s.home, awayScore: s.away, homePens: pens?.home ?? null, awayPens: pens?.away ?? null }).where(eq(matches.id, m.id));
 }
 
 export type OpResult = { clientOpId: string; outcome: SyncOutcome; message: string };
@@ -100,13 +102,33 @@ export async function applyOp(actor: Actor, matchId: string, op: MatchOp): Promi
               .where(and(eq(rosterEntries.competitionId, m.competitionId), eq(rosterEntries.teamId, op.teamId), eq(rosterEntries.athleteId, athleteId)));
             if (!r) reject("Atleta não inscrito por esta equipe na competição.");
           }
+          const inPlay = m.period === "FIRST_HALF" || m.period === "SECOND_HALF";
+          const all = await tx.select({ type: matchEvents.type, teamId: matchEvents.teamId, voidedAt: matchEvents.voidedAt, detail: matchEvents.detail }).from(matchEvents).where(eq(matchEvents.matchId, m.id));
+          const flow = all.map((e) => ({ type: e.type, teamId: e.teamId, voided: e.voidedAt !== null, period: e.detail.period ?? null }));
+          const shootout = op.type === "SHOOTOUT_GOAL" || op.type === "SHOOTOUT_MISS";
+          if (shootout) {
+            if (row!.phaseType !== "KNOCKOUT") reject("Disputa de pênaltis só em jogo de mata-mata.");
+            if (m.period !== "FINISHED") reject("Encerre o 2º tempo antes da disputa de pênaltis.");
+            if (m.homeScore !== m.awayScore) reject("A disputa de pênaltis só acontece com o jogo empatado.");
+            if (shootoutState(flow, m.homeTeamId, m.awayTeamId).winner) reject("A disputa de pênaltis já está decidida.");
+          }
+          if ((op.type === "FOUL" || op.type === "TIMEOUT") && !inPlay) reject("Lance só com a bola em jogo (1º ou 2º tempo).");
+          if (op.type === "TIMEOUT") {
+            if (row!.modality !== "FUTSAL") reject("Tempo técnico é do futsal.");
+            if (timeoutsUsed(flow, op.teamId, m.period) >= row!.timeoutsPerHalf) reject("Esta equipe já usou o tempo técnico neste tempo.");
+          }
           const inserted = await tx.insert(matchEvents).values({
             matchId: m.id, type: op.type, teamId: op.teamId, athleteId: op.athleteId, minute: op.minute,
-            detail: { ownGoal: op.ownGoal, penalty: op.penalty, assistAthleteId: op.assistAthleteId ?? null, playerOutId: op.playerOutId ?? null },
+            detail: { ownGoal: op.ownGoal, penalty: op.penalty, assistAthleteId: op.assistAthleteId ?? null, playerOutId: op.playerOutId ?? null, ...(inPlay ? { period: m.period as "FIRST_HALF" | "SECOND_HALF" } : {}) },
             clientEventId: op.clientOpId, createdBy: actor.id,
           }).onConflictDoNothing().returning({ id: matchEvents.id });
-          if (inserted.length && op.type === "GOAL") await recomputeScore(tx, m);
-          message = "Evento registrado.";
+          if (inserted.length && (op.type === "GOAL" || shootout)) await recomputeScore(tx, m);
+          // Tempo técnico para o cronômetro do futsal.
+          if (inserted.length && op.type === "TIMEOUT" && m.ballInPlay) {
+            const next = setBallInPlay(clockStateOf(m), false, clampClientTime(op.at, serverNow, clockStateOf(m).segmentStartedAt));
+            await tx.update(matches).set(clockColumns(next)).where(eq(matches.id, m.id));
+          }
+          message = op.type === "TIMEOUT" ? "Tempo técnico: cronômetro parado." : "Evento registrado.";
           break;
         }
         case "void": {
@@ -116,6 +138,13 @@ export async function applyOp(actor: Actor, matchId: string, op: MatchOp): Promi
           if (!ev) reject("Evento não encontrado ou já desfeito.");
           await recomputeScore(tx, m);
           message = "Evento desfeito.";
+          break;
+        }
+        case "play": {
+          if (m.status !== "LIVE") reject("Campinho só com o jogo ao vivo.");
+          if (op.teamId !== m.homeTeamId && op.teamId !== m.awayTeamId) reject("Equipe não pertence ao jogo.");
+          await tx.insert(matchPlays).values({ matchId: m.id, teamId: op.teamId, kind: op.play, x: op.x, y: op.y, clientOpId: op.clientOpId }).onConflictDoNothing();
+          message = "Lance no campinho.";
           break;
         }
         case "stats": {
@@ -138,8 +167,10 @@ export async function applyOp(actor: Actor, matchId: string, op: MatchOp): Promi
           break;
         }
       }
-      await tx.update(matches).set({ version: m.version + 1 }).where(eq(matches.id, m.id));
-      await recordAudit(tx, { organizationId: actor.organizationId, actorUserId: actor.id, action: `match.op.${op.kind}`, entityType: "match", entityId: m.id, after: op });
+      // Toques do campinho não mudam versão (o site busca esses lances à parte).
+      if (op.kind !== "play") await tx.update(matches).set({ version: m.version + 1 }).where(eq(matches.id, m.id));
+      // Toques do campinho são muitos e não alteram o resultado: sem auditoria.
+      if (op.kind !== "play") await recordAudit(tx, { organizationId: actor.organizationId, actorUserId: actor.id, action: `match.op.${op.kind}`, entityType: "match", entityId: m.id, after: op });
       return { clientOpId: op.clientOpId, outcome: "applied" as const, message };
     });
   } catch (e) {

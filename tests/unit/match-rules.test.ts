@@ -43,3 +43,23 @@ describe("sincronização offline", () => {
     expect(shouldApplyStats(500, null)).toBe(true);
   });
 });
+
+import { accumulatedFouls, computePens, shootoutState } from "@/domain/match/rules";
+describe("disputa de pênaltis e futsal", () => {
+  const H = "h", A = "a";
+  const k = (teamId: string, goal: boolean) => ({ type: goal ? "SHOOTOUT_GOAL" : "SHOOTOUT_MISS", teamId, voided: false });
+  it("decide antes das 5 quando não dá mais para alcançar", () => {
+    const ev = [k(H, true), k(A, false), k(H, true), k(A, false), k(H, true), k(A, false)];
+    expect(shootoutState(ev, H, A).winner).toBe("home");
+  });
+  it("morte súbita após 5x5 empatado", () => {
+    const five = Array.from({ length: 5 }, () => [k(H, true), k(A, true)]).flat();
+    expect(shootoutState(five, H, A).winner).toBeNull();
+    expect(shootoutState([...five, k(H, true), k(A, false)], H, A).winner).toBe("home");
+    expect(computePens([...five, k(H, true), k(A, false)], H)).toEqual({ home: 6, away: 5 });
+  });
+  it("faltas acumuladas zeram por tempo", () => {
+    const f = (period: string) => ({ type: "FOUL", teamId: H, voided: false, period });
+    expect(accumulatedFouls([f("FIRST_HALF"), f("FIRST_HALF"), f("SECOND_HALF")], H, "FIRST_HALF")).toBe(2);
+  });
+});

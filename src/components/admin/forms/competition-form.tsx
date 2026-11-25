@@ -32,7 +32,7 @@ export function CompetitionCreateForm() {
 type Values = {
   logoUrl: string | null;
   id: string; name: string; season: string; modality: "FIELD" | "FUTSAL"; status: keyof typeof COMPETITION_STATUS_LABEL;
-  city: string | null; description: string | null; periodMinutes: number; pointsWin: number; pointsDraw: number; pointsLoss: number; published: boolean;
+  city: string | null; description: string | null; periodMinutes: number; intervalMinutes: number; timeoutsPerHalf: number; pointsWin: number; pointsDraw: number; pointsLoss: number; published: boolean;
 };
 
 /** Aba Regulamento: dados, situação, tempo de jogo e pontuação da tabela. */
@@ -54,8 +54,10 @@ export function CompetitionRulesForm({ values }: { values: Values }) {
             <SelectInput label="Situação" name="status" options={opts(COMPETITION_STATUS_LABEL)} defaultValue={values.status} />
           </fieldset>
           <fieldset className="grid gap-4 sm:grid-cols-4">
-            <legend className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Regras da tabela</legend>
+            <legend className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Tempo de jogo e tabela</legend>
             <TextInput label="Minutos por tempo" name="periodMinutes" type="number" min={5} max={60} defaultValue={values.periodMinutes} hint="Campo 45 • Futsal 20" />
+            <TextInput label="Intervalo (minutos)" name="intervalMinutes" type="number" min={0} max={60} defaultValue={values.intervalMinutes} hint="Campo 15 • Futsal 10" />
+            {values.modality === "FUTSAL" && <TextInput label="Tempos técnicos por tempo" name="timeoutsPerHalf" type="number" min={0} max={3} defaultValue={values.timeoutsPerHalf} hint="Por equipe, em cada tempo" />}
             <TextInput label="Pontos por vitória" name="pointsWin" type="number" min={0} max={10} defaultValue={values.pointsWin} />
             <TextInput label="Pontos por empate" name="pointsDraw" type="number" min={0} max={10} defaultValue={values.pointsDraw} />
             <TextInput label="Pontos por derrota" name="pointsLoss" type="number" min={0} max={10} defaultValue={values.pointsLoss} />

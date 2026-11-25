@@ -34,6 +34,8 @@ export type ClockState = {
 export type ClockConfig = {
   /** Duração regulamentar de cada tempo, em minutos (campo 45, futsal 20). */
   periodMinutes: number;
+  /** Futsal: cronômetro de tempo corrido — só anda com a bola rolando. */
+  futsal?: boolean;
 };
 
 export type ClockSnapshot = {
@@ -155,6 +157,15 @@ export function snapshot(state: ClockState, now: number, cfg: ClockConfig): Cloc
   }
 
   const base = periodBaseMinutes(state.period, cfg);
+  if (cfg.futsal) {
+    // Tempo corrido: mostra mm:ss do período, parado enquanto a bola não rola.
+    const mm = Math.floor(rollingMs / 60_000), ss = Math.floor((rollingMs % 60_000) / 1000);
+    return {
+      period: state.period, running, ballInPlay: state.ballInPlay, rollingMs, stoppedMs, totalMs,
+      minute: base + Math.min(cfg.periodMinutes, mm + 1), stoppageMinute: null,
+      label: `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`,
+    };
+  }
   const periodMinute = Math.floor(totalMs / 60_000) + 1;
   const regulationEnd = base + cfg.periodMinutes;
   const minute = base + periodMinute;

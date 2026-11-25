@@ -1,7 +1,7 @@
 import "server-only";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { athletes, matchEvents, matchStats, rosterEntries } from "@/db/schema";
+import { athletes, matchEvents, matchPlays, matchStats, rosterEntries } from "@/db/schema";
 
 export function listMatchEvents(matchId: string) {
   return getDb()
@@ -35,4 +35,10 @@ export function listMatchRoster(competitionId: string, teamIds: string[]) {
     .where(and(eq(rosterEntries.competitionId, competitionId)))
     .orderBy(asc(rosterEntries.shirtNumber), asc(athletes.name))
     .then((rows) => rows.filter((r) => teamIds.includes(r.teamId)));
+}
+
+/** Últimos lances do campinho (mais antigo primeiro). */
+export async function listMatchPlays(matchId: string, limit = 12) {
+  const rows = await getDb().select().from(matchPlays).where(eq(matchPlays.matchId, matchId)).orderBy(desc(matchPlays.createdAt)).limit(limit);
+  return rows.reverse();
 }
