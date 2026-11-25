@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export type Play = { id: string; teamId: string; kind: string; x: number; y: number };
-type Ev = { id: string; type: "GOAL" | "YELLOW" | "RED" | string; teamId: string; minute: number; ownGoal: boolean };
+type Ev = { id: string; type: "GOAL" | "YELLOW" | "RED" | string; teamId: string; minute: number; ownGoal: boolean; athleteName?: string | null };
 type Team = { id: string; name: string };
 
 const HOME_COLOR = "#1ee37b";
@@ -61,8 +61,8 @@ export function PitchGround({ futsal, id }: { futsal: boolean; id: string }) {
  * área de ataque, rastro na cor do time). Formato 2: sem olheiro, anima os
  * lances do operador (gol para o lado certo, cartões).
  */
-export function LivePitch({ futsal, live, home, away, score, plays: initialPlays, events, matchId }: {
-  futsal: boolean; live: boolean; home: Team; away: Team; score: [number, number]; plays: Play[]; events: Ev[]; matchId?: string;
+export function LivePitch({ futsal, live, finished = false, home, away, score, plays: initialPlays, events, matchId }: {
+  futsal: boolean; live: boolean; finished?: boolean; home: Team; away: Team; score: [number, number]; plays: Play[]; events: Ev[]; matchId?: string;
 }) {
   const ballRef = useRef<SVGGElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
@@ -75,8 +75,11 @@ export function LivePitch({ futsal, live, home, away, score, plays: initialPlays
   const busy = useRef(false);
   const [banner, setBanner] = useState<{ text: string; team?: string } | null>(() => {
     const last = initialPlays.at(-1);
-    return last ? { text: PLAY_LABEL[last.kind] ?? "", team: last.teamId === home.id ? home.name : away.name } : { text: live ? "Bola rolando" : "Fim de jogo" };
+    if (finished || !live) return { text: "Fim de jogo" };
+    return last ? { text: PLAY_LABEL[last.kind] ?? "", team: last.teamId === home.id ? home.name : away.name } : { text: "Bola rolando" };
   });
+  const [owner, setOwner] = useState<string | null>(initialPlays.at(-1)?.teamId ?? null);
+  const [card, setCard] = useState<{ red: boolean; name: string; team: string; minute: number; key: number } | null>(null);
   const [zone, setZone] = useState<"home" | "away" | null>(null);
   const [goal, setGoal] = useState<{ name: string; key: number } | null>(null);
   const [cur, setCur] = useState(score);
@@ -96,7 +99,8 @@ export function LivePitch({ futsal, live, home, away, score, plays: initialPlays
       const dist = Math.hypot(x - fx, y - fy);
       cancelAnimationFrame(anim.current);
       if (dist < 2) { pos.current = { x, y }; draw(x, y, 0); resolve(); return; }
-      const dur = opts.dur ?? Math.min(1400, 450 + dist * 1.1);
+      // Devagar o suficiente para o torcedor acompanhar.
+      const dur = opts.dur ?? Math.min(2600, 900 + dist * 2);
       const lift = opts.lift ?? Math.min(70, dist / 7);
       const tr = tailRef.current!;
       tr.setAttribute("d", `M${fx} ${fy} Q${(fx + x) / 2} ${(fy + y) / 2 - lift * 1.6} ${x} ${y}`);
@@ -132,8 +136,9 @@ export function LivePitch({ futsal, live, home, away, score, plays: initialPlays
     const attackZone = isHome ? p.x > 600 : p.x < 400;
     setZone(p.kind === "DANGER" || p.kind === "SHOT_ON" || p.kind === "CORNER" || (p.kind === "ATTACK" && attackZone) ? (isHome ? "home" : "away") : null);
     setBanner({ text: PLAY_LABEL[p.kind] ?? p.kind, team: name });
+    setOwner(p.teamId);
     const fast = p.kind === "SHOT" || p.kind === "SHOT_ON";
-    await move(p.x, p.y, color(p.teamId), fast ? { dur: 600, lift: 30 } : {});
+    await move(p.x, p.y, color(p.teamId), fast ? { dur: 1100, lift: 30 } : {});
   }
 
   async function drain() {
@@ -143,7 +148,7 @@ export function LivePitch({ futsal, live, home, away, score, plays: initialPlays
       // atrasado demais: pula para os 3 últimos
       if (queue.current.length > 3) queue.current = queue.current.slice(-3);
       await playOne(queue.current.shift()!);
-      await new Promise((r) => setTimeout(r, 250));
+      await new Promise((r) => setTimeout(r, 600));
     }
     busy.current = false;
   }
@@ -190,10 +195,17 @@ export function LivePitch({ futsal, live, home, away, score, plays: initialPlays
         void move(scorerHome ? 988 : 12, 285 + Math.random() * 30, scorerHome ? HOME_COLOR : AWAY_COLOR, { dur: 650, lift: 22 }).then(() => {
           setCur(score);
           setGoal({ name: team.name, key: Date.now() });
-          setTimeout(() => { setGoal(null); void move(500, 300, "#ffffff", { dur: 1200, lift: 40 }); }, 3200);
+          setTimeout(() => {
+            setGoal(null);
+            setOwner(null);
+            setBanner({ text: "Reinício de jogo" });
+            void move(500, 300, "#ffffff", { dur: 1800, lift: 40 }).then(() => setBanner({ text: "Bola rolando" }));
+          }, 3200);
         });
       } else {
         setBanner({ text: e.type === "RED" ? "Cartão vermelho" : "Cartão amarelo", team: name });
+        setCard({ red: e.type === "RED", name: e.athleteName ?? "Atleta", team: name, minute: e.minute, key: Date.now() });
+        setTimeout(() => setCard(null), 4500);
       }
     }
     if (!fresh.some((e) => e.type === "GOAL")) setCur(score);
@@ -212,17 +224,33 @@ export function LivePitch({ futsal, live, home, away, score, plays: initialPlays
         <svg viewBox="0 0 1000 600" className="absolute inset-0 size-full">
           <PitchGround futsal={futsal} id={gid} />
           <defs>
-            <linearGradient id={`${gid}-zr`} x1="0" x2="1"><stop offset="0" stopColor={HOME_COLOR} stopOpacity="0" /><stop offset="1" stopColor={HOME_COLOR} stopOpacity=".45" /></linearGradient>
-            <linearGradient id={`${gid}-zl`} x1="1" x2="0"><stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#fff" stopOpacity=".35" /></linearGradient>
+            {/* Campo de ataque escurece (mais forte perto do gol); o resto fica claro. */}
+            <linearGradient id={`${gid}-zr`} x1="0" x2="1"><stop offset="0" stopColor="#000" stopOpacity=".12" /><stop offset="1" stopColor="#000" stopOpacity=".5" /></linearGradient>
+            <linearGradient id={`${gid}-zl`} x1="1" x2="0"><stop offset="0" stopColor="#000" stopOpacity=".12" /><stop offset="1" stopColor="#000" stopOpacity=".5" /></linearGradient>
           </defs>
-          <rect x="667" y="20" width="313" height="560" fill={`url(#${gid}-zr)`} style={{ opacity: zone === "home" ? 1 : 0, transition: "opacity .45s" }} />
-          <rect x="20" y="20" width="313" height="560" fill={`url(#${gid}-zl)`} style={{ opacity: zone === "away" ? 1 : 0, transition: "opacity .45s" }} />
+          <rect x="500" y="20" width="480" height="560" fill={`url(#${gid}-zr)`} style={{ opacity: zone === "home" ? 1 : 0, transition: "opacity .8s" }} />
+          <rect x="20" y="20" width="480" height="560" fill={`url(#${gid}-zl)`} style={{ opacity: zone === "away" ? 1 : 0, transition: "opacity .8s" }} />
+          <line x1="980" y1="20" x2="980" y2="580" stroke={HOME_COLOR} strokeWidth="6" style={{ opacity: zone === "home" ? 1 : 0, transition: "opacity .8s" }} />
+          <line x1="20" y1="20" x2="20" y2="580" stroke={AWAY_COLOR} strokeWidth="6" style={{ opacity: zone === "away" ? 1 : 0, transition: "opacity .8s" }} />
           <PitchLines futsal={futsal} />
           <rect x="980" y={futsal ? 260 : 255} width="16" height={futsal ? 80 : 90} fill="rgba(255,255,255,.25)" stroke="#fff" strokeWidth="2" className={goal ? "animate-pulse" : ""} />
           <rect x="4" y={futsal ? 260 : 255} width="16" height={futsal ? 80 : 90} fill="rgba(255,255,255,.25)" stroke="#fff" strokeWidth="2" />
           <path ref={tailRef} d="" fill="none" strokeWidth="5" strokeLinecap="round" opacity=".9" />
           <ellipse ref={shadowRef} cx="500" cy="306" rx="14" ry="6" fill="rgba(0,0,0,.4)" />
           <g ref={ballRef} transform="translate(500 300)">
+            {/* Destaque de onde está a bola: anel pulsando na cor do time e seta acima. */}
+            {!finished && (
+              <>
+                <circle r="16" fill="none" stroke={owner ? color(owner) : "#fff"} strokeWidth="4">
+                  <animate attributeName="r" values="16;42" dur="1.4s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values=".9;0" dur="1.4s" repeatCount="indefinite" />
+                </circle>
+                <circle r="22" fill={owner ? color(owner) : "#fff"} opacity=".22" />
+                <path d="M-9 -44 L9 -44 L0 -30Z" fill={owner ? color(owner) : "#fff"} stroke="#000" strokeOpacity=".4" strokeWidth="2">
+                  <animateTransform attributeName="transform" type="translate" values="0 0;0 -6;0 0" dur="1s" repeatCount="indefinite" />
+                </path>
+              </>
+            )}
             <circle r="13" fill="#fff" stroke="#111" strokeWidth="2" />
             <path d="M-5 -4 L0 -8 L5 -4 L3 3 L-3 3Z" fill="#111" />
           </g>
@@ -230,6 +258,16 @@ export function LivePitch({ futsal, live, home, away, score, plays: initialPlays
         {banner && (
           <div className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-black/70 px-3.5 py-1 text-sm font-bold uppercase text-white">
             {banner.text}{banner.team && <> · <span className="text-brand-green">{banner.team}</span></>}
+          </div>
+        )}
+        {card && (
+          <div key={card.key} className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/15 bg-black/80 px-4 py-3 animate-[goalin_4.5s_ease_forwards]">
+            <span className={cn("block h-12 w-8 -rotate-6 rounded-md shadow-lg", card.red ? "bg-red-600" : "bg-yellow-400")} aria-hidden="true" />
+            <span className="text-left text-white">
+              <span className="block text-xs font-bold uppercase text-white/60">{card.red ? "Cartão vermelho" : "Cartão amarelo"} · {card.minute}&apos;</span>
+              <span className="block text-lg font-extrabold leading-tight">{card.name}</span>
+              <span className="block text-xs text-white/70">{card.team}</span>
+            </span>
           </div>
         )}
         {goal && (

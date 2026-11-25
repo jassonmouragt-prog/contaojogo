@@ -25,7 +25,7 @@ const ACTIONS: { kind: PlayKind; label: string; tone?: "hot" }[] = [
  * Painel do olheiro: toque no campo onde está a bola, escolha o time e o lance.
  * Usa a mesma fila offline do operador (sem sinal, guarda e envia depois).
  */
-export function ScoutPanel({ matchId, futsal, live, home, away }: { matchId: string; futsal: boolean; live: boolean; home: Team; away: Team }) {
+export function ScoutPanel({ matchId, futsal, live, finished = false, home, away }: { matchId: string; futsal: boolean; live: boolean; finished?: boolean; home: Team; away: Team }) {
   const outbox = useOutbox(matchId);
   const [pos, setPos] = useState({ x: 500, y: 300 });
   const [team, setTeam] = useState(home.id);
@@ -57,7 +57,8 @@ export function ScoutPanel({ matchId, futsal, live, home, away }: { matchId: str
   const queued = outbox.queued.length;
   return (
     <div className="mx-auto max-w-xl space-y-3">
-      {!live && <p className="rounded-xl border border-brand-amber/50 bg-brand-amber/10 px-4 py-2 text-sm font-semibold text-brand-amber">O campinho só envia lances com o jogo ao vivo (iniciado pelo operador).</p>}
+      {finished ? <p className="rounded-xl border border-brand-live/50 bg-brand-live/10 px-4 py-3 text-center text-base font-extrabold uppercase text-brand-live">Fim de jogo</p>
+        : !live && <p className="rounded-xl border border-brand-amber/50 bg-brand-amber/10 px-4 py-2 text-sm font-semibold text-brand-amber">O campinho só envia lances com o jogo ao vivo (iniciado pelo operador).</p>}
       {(queued > 0 || outbox.state === "offline") && (
         <p role="status" className="rounded-xl border border-brand-amber/50 bg-brand-amber/10 px-4 py-2 text-sm font-semibold text-brand-amber">
           {outbox.state === "offline" ? "Sem internet — " : ""}{queued} lance(s) aguardando envio. Pode continuar.
@@ -67,6 +68,7 @@ export function ScoutPanel({ matchId, futsal, live, home, away }: { matchId: str
         <svg ref={svgRef} viewBox="0 0 1000 600" className="block w-full cursor-crosshair touch-manipulation" onPointerDown={tap} aria-label="Toque onde está a bola">
           <PitchGround futsal={futsal} id="scout" />
           <PitchLines futsal={futsal} />
+          {/* Marca onde o olheiro tocou = onde está a bola agora. */}
           <circle cx={pos.x} cy={pos.y} r="20" fill="none" stroke={team === home.id ? "#1ee37b" : "#fff"} strokeWidth="6" />
           <circle cx={pos.x} cy={pos.y} r="9" fill="#fff" />
           <text x="40" y="60" fill="rgba(255,255,255,.6)" fontSize="28" fontWeight="700">← {away.name}</text>

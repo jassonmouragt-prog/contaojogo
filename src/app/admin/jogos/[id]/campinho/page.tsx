@@ -24,7 +24,7 @@ async function Panel({ params }: { params: Promise<{ id: string }> }) {
         <span>Olheiro • {m.homeName} x {m.awayName}</span>
         <Link href={`/admin/jogos/${id}`} className="font-semibold hover:text-foreground">Painel do operador →</Link>
       </div>
-      <ScoutPanel matchId={m.id} futsal={m.modality === "FUTSAL"} live={m.status === "LIVE"} home={{ id: m.homeId, name: m.homeName }} away={{ id: m.awayId, name: m.awayName }} />
+      <ScoutPanel matchId={m.id} futsal={m.modality === "FUTSAL"} live={m.status === "LIVE"} finished={m.status === "FINISHED" || m.status === "CONFIRMED" || m.period === "FINISHED"} home={{ id: m.homeId, name: m.homeName }} away={{ id: m.awayId, name: m.awayName }} />
     </>
   );
 }

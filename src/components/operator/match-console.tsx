@@ -59,6 +59,7 @@ export function MatchConsole(props: ConsoleProps) {
   const outbox = useOutbox(props.matchId);
   const [sheet, setSheet] = useState<EvType | null>(null);
   const futsal = props.modality === "FUTSAL";
+  const [kicker, setKicker] = useState<Record<string, string>>({});
 
   // ===== Estado otimista: servidor + fila local ainda não sincronizada =====
   let clockState = props.clock;
@@ -115,8 +116,12 @@ export function MatchConsole(props: ConsoleProps) {
   const so = shootoutState(flow, props.home.id, props.away.id);
   const quick = (type: "FOUL" | "TIMEOUT", teamId: string) =>
     void outbox.push({ kind: "event", clientOpId: newOpId(), at: stamp(), type, teamId, athleteId: null, minute: snap.minute ?? 0 });
-  const kick = (teamId: string, goal: boolean) =>
-    void outbox.push({ kind: "event", clientOpId: newOpId(), at: stamp(), type: goal ? "SHOOTOUT_GOAL" : "SHOOTOUT_MISS", teamId, athleteId: null, minute: props.periodMinutes * 2 });
+  const kick = (teamId: string, goal: boolean) => {
+    const athleteId = kicker[teamId] || null;
+    void outbox.push({ kind: "event", clientOpId: newOpId(), at: stamp(), type: goal ? "SHOOTOUT_GOAL" : "SHOOTOUT_MISS", teamId, athleteId, minute: props.periodMinutes * 2 });
+    setKicker((k) => ({ ...k, [teamId]: "" }));
+  };
+  const kickersOf = (teamId: string) => events.filter((e) => !e.voided && e.teamId === teamId && e.type.startsWith("SHOOTOUT")).map((e) => e.athleteName);
 
   const visibleEvents = events.filter((e) => !e.voided);
   const lastEvent = visibleEvents.at(-1);
@@ -198,12 +203,17 @@ export function MatchConsole(props: ConsoleProps) {
         <section className="overflow-hidden rounded-xl border-2 border-brand-green/60 bg-card">
           <p className="bg-surface-2 px-4 py-2 text-xs font-bold uppercase tracking-wide">Disputa de pênaltis</p>
           <div className="p-3">
-            <ShootoutBoard home={{ name: props.home.name, kicks: so.home }} away={{ name: props.away.name, kicks: so.away }} winner={so.winner} />
+            <ShootoutBoard home={{ name: props.home.name, kicks: so.home, kickers: kickersOf(props.home.id) }} away={{ name: props.away.name, kicks: so.away, kickers: kickersOf(props.away.id) }} winner={so.winner} />
             {!so.winner && status === "LIVE" && (
               <div className="mt-3 grid grid-cols-2 gap-3">
                 {[props.home, props.away].map((t) => (
                   <div key={t.id} className="space-y-2">
                     <p className="truncate text-center text-xs font-bold">{t.name}</p>
+                    <select aria-label={`Cobrador ${t.name}`} value={kicker[t.id] ?? ""} onChange={(e) => setKicker((k) => ({ ...k, [t.id]: e.target.value }))}
+                      className="h-11 w-full rounded-lg border bg-background px-2 text-sm">
+                      <option value="">Quem vai cobrar?</option>
+                      {props.roster.filter((r) => r.teamId === t.id).map((r) => <option key={r.athleteId} value={r.athleteId}>{r.nickname ?? r.name}</option>)}
+                    </select>
                     <button onClick={() => kick(t.id, true)} className="h-11 w-full rounded-lg bg-brand-green text-sm font-bold text-primary-foreground">✓ Converteu</button>
                     <button onClick={() => kick(t.id, false)} className="h-11 w-full rounded-lg border border-brand-live text-sm font-bold text-brand-live">✗ Perdeu</button>
                   </div>
@@ -222,7 +232,7 @@ export function MatchConsole(props: ConsoleProps) {
 
       {lastEvent && editable && (
         <div className="flex items-center justify-between rounded-xl border bg-card px-4 py-3 text-sm">
-          <span><span className="text-xs uppercase text-muted-foreground">Último evento </span>{lastEvent.minute}&apos; • {EVENT_LABEL[lastEvent.type]} • {teamName(lastEvent.teamId)}{lastEvent.athleteName ? ` • ${lastEvent.athleteName}` : ""}</span>
+          <span><span className="text-xs uppercase text-muted-foreground">Último evento </span>{lastEvent.type.startsWith("SHOOTOUT") ? "Pênaltis" : `${lastEvent.minute}'`} • {EVENT_LABEL[lastEvent.type]} • {teamName(lastEvent.teamId)}{lastEvent.athleteName ? ` • ${lastEvent.athleteName}` : ""}</span>
           <button
             onClick={() => (lastEvent.pending && !lastEvent.voided ? void outbox.discard(lastEvent.clientEventId) : void outbox.push({ kind: "void", clientOpId: newOpId(), at: stamp(), targetClientOpId: lastEvent.clientEventId }))}
             className="font-semibold text-destructive">Desfazer</button>
@@ -240,7 +250,7 @@ export function MatchConsole(props: ConsoleProps) {
           <ul className="divide-y text-sm">
             {events.map((e) => (
               <li key={e.id} className={cn("flex items-center gap-3 px-4 py-2", e.voided && "line-through opacity-40")}>
-                <span className="tabular w-10 font-mono font-bold">{e.minute}&apos;</span>
+                <span className="tabular w-10 font-mono font-bold">{e.type.startsWith("SHOOTOUT") ? "PÊN" : `${e.minute}'`}</span>
                 <span className="flex-1">{EVENT_LABEL[e.type]}{e.ownGoal ? " (contra)" : ""}{e.penalty ? " (pênalti)" : ""}{e.athleteName ? ` • ${e.athleteName}` : ""}</span>
                 <span className="text-xs text-muted-foreground">{teamName(e.teamId)}</span>
                 {e.pending && <span className="rounded bg-brand-amber/20 px-1.5 text-[10px] font-bold text-brand-amber">PENDENTE</span>}

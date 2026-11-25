@@ -94,12 +94,15 @@ async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
           home={{ id: m.homeId, name: m.homeName }} away={{ id: m.awayId, name: m.awayName }}
           score={[m.homeScore, m.awayScore]}
           plays={plays.map((p) => ({ id: p.id, teamId: p.teamId, kind: p.kind, x: p.x, y: p.y }))}
-          events={valid.filter((e) => e.type === "GOAL" || e.type === "YELLOW" || e.type === "RED").map((e) => ({ id: e.id, type: e.type, teamId: e.teamId, minute: e.minute, ownGoal: !!e.detail.ownGoal }))} />
+          finished={m.status === "FINISHED" || m.status === "CONFIRMED"}
+          events={valid.filter((e) => e.type === "GOAL" || e.type === "YELLOW" || e.type === "RED").map((e) => ({ id: e.id, type: e.type, teamId: e.teamId, minute: e.minute, ownGoal: !!e.detail.ownGoal, athleteName: e.athleteName }))} />
       )}
       {hasShootout && (
         <section className="space-y-3 rounded-2xl border bg-card p-5">
           <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Disputa de pênaltis</h2>
-          <ShootoutBoard size="lg" home={{ name: m.homeName, kicks: so.home }} away={{ name: m.awayName, kicks: so.away }} winner={so.winner} />
+          <ShootoutBoard size="lg" winner={so.winner}
+            home={{ name: m.homeName, kicks: so.home, kickers: valid.filter((e) => e.teamId === m.homeId && e.type.startsWith("SHOOTOUT")).map((e) => e.athleteName) }}
+            away={{ name: m.awayName, kicks: so.away, kickers: valid.filter((e) => e.teamId === m.awayId && e.type.startsWith("SHOOTOUT")).map((e) => e.athleteName) }} />
         </section>
       )}
       <SponsorSlot placement="MATCH" />

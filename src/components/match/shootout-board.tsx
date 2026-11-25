@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-type Side = { name: string; crest?: string | null; kicks: boolean[] };
+type Side = { name: string; crest?: string | null; kicks: boolean[]; kickers?: (string | null)[] };
 
 /**
  * Disputa de pênaltis: uma fileira de bolas por equipe (✓ convertido, ✗ perdido,
@@ -10,7 +10,8 @@ export function ShootoutBoard({ home, away, winner, size = "md" }: { home: Side;
   const slots = Math.max(5, home.kicks.length, away.kicks.length);
   const goals = (k: boolean[]) => k.filter(Boolean).length;
   const row = (s: Side, won: boolean, lost: boolean) => (
-    <div className={cn("flex items-center gap-3 rounded-xl px-3 py-2", won ? "bg-brand-green/10 ring-1 ring-brand-green/50" : "", lost && "opacity-70")}>
+    <div className={cn("rounded-xl px-3 py-2", won ? "bg-brand-green/10 ring-1 ring-brand-green/50" : "", lost && "opacity-70")}>
+    <div className="flex items-center gap-3">
       <span className={cn("w-24 shrink-0 truncate font-bold sm:w-32", size === "lg" ? "text-base" : "text-sm")}>{s.name}</span>
       <ol className="flex flex-1 flex-wrap items-center gap-1.5" aria-label={`Cobranças de ${s.name}`}>
         {Array.from({ length: slots }, (_, i) => {
@@ -28,6 +29,14 @@ export function ShootoutBoard({ home, away, winner, size = "md" }: { home: Side;
         })}
       </ol>
       <span className={cn("tabular w-8 text-right font-mono font-black", size === "lg" ? "text-3xl" : "text-2xl", won && "text-brand-green")}>{goals(s.kicks)}</span>
+    </div>
+    {s.kicks.length > 0 && (
+      <ol className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground sm:pl-35">
+        {s.kicks.map((k, i) => (
+          <li key={i}><span className="font-mono">{i + 1}.</span> {s.kickers?.[i] ?? "Cobrador"} <span className={k ? "font-bold text-brand-green" : "font-bold text-brand-live"}>{k ? "✓" : "✗"}</span></li>
+        ))}
+      </ol>
+    )}
     </div>
   );
   return (

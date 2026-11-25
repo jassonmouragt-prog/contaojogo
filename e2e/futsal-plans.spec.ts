@@ -110,6 +110,7 @@ test.describe("futsal, pênaltis e planos", () => {
     await ok(/registre a disputa de pênaltis/);
 
     const board = page.locator("section", { hasText: "Disputa de pênaltis" });
+    await board.getByLabel(`Cobrador ${home}`).selectOption({ label: `Fixo ${tag}` });
     const [hGoal, aGoal] = [board.getByRole("button", { name: "✓ Converteu" }).first(), board.getByRole("button", { name: "✓ Converteu" }).last()];
     const aMiss = board.getByRole("button", { name: "✗ Perdeu" }).last();
     for (const b of [hGoal, aGoal, hGoal, aMiss, hGoal, aMiss, hGoal]) { await b.click(); await page.waitForTimeout(400); }
@@ -119,6 +120,7 @@ test.describe("futsal, pênaltis e planos", () => {
     await ok(/Aguardando conferência/);
     await expect(pub.getByText("Pênaltis: 4 x 1")).toBeVisible({ timeout: 25_000 });
     await expect(pub.getByLabel(`Cobranças de ${home}`).locator("li", { hasText: "✓" })).toHaveCount(4);
+    await expect(pub.getByText(`1. Fixo ${tag} ✓`).first()).toBeVisible();
   });
 
   test("clube assina um plano e o dono libera o painel", async ({ page, browser }) => {
