@@ -165,14 +165,20 @@ test.describe("cadastro de competição e agenda", () => {
     const matchId = matchUrl.split("/jogos/")[1];
     const scout = await page.context().newPage();
     await scout.goto(`/admin/jogos/${matchId}/campinho`);
-    await scout.getByLabel("Toque onde está a bola").click({ position: { x: 300, y: 100 } });
-    await scout.getByRole("button", { name: "Ataque perigoso" }).click();
+    const field = scout.getByLabel("Toque onde está a bola");
+    await field.waitFor();
+    const box = (await field.boundingBox())!;
+    await field.click({ position: { x: box.width * 0.6, y: box.height * 0.5 } }); // campo de ataque
+    await expect(scout.getByText(`Ataque · ${home}`)).toBeVisible();
+    await field.click({ position: { x: box.width * 0.88, y: box.height * 0.5 } }); // perto da área
     await expect(scout.getByText(`Ataque perigoso · ${home}`)).toBeVisible();
+    await scout.getByRole("button", { name: "Chute no gol" }).click();
+    await expect(scout.getByText(`Chute no gol · ${home}`)).toBeVisible();
     await expect(async () => {
       const r = await pub.request.get(`/api/public/plays?match=${matchId}`);
       expect(((await r.json()) as { plays: { kind: string }[] }).plays.map((p) => p.kind)).toContain("DANGER");
     }).toPass({ timeout: 20_000 });
-    await expect(pub.getByText(/Ataque perigoso/).first()).toBeVisible({ timeout: 15_000 });
+    await expect(pub.getByText(/Defesa do goleiro|Chute no gol|Ataque perigoso/).first()).toBeVisible({ timeout: 20_000 });
     await scout.close();
 
     // Estatísticas

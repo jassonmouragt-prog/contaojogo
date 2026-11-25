@@ -10,16 +10,25 @@ import { cn } from "@/lib/utils";
 type Team = { id: string; name: string };
 const stamp = () => Date.now();
 const ACTIONS: { kind: PlayKind; label: string; tone?: "hot" }[] = [
-  { kind: "POSSESSION", label: "Posse" },
-  { kind: "ATTACK", label: "Ataque" },
-  { kind: "DANGER", label: "Ataque perigoso", tone: "hot" },
-  { kind: "SHOT", label: "Chute fora" },
-  { kind: "SHOT_ON", label: "Chute no gol", tone: "hot" },
-  { kind: "CORNER", label: "Escanteio" },
   { kind: "FREE_KICK", label: "Falta" },
   { kind: "THROW_IN", label: "Lateral" },
   { kind: "GOAL_KICK", label: "Tiro de meta" },
+  { kind: "SHOT", label: "Chute fora" },
+  { kind: "SHOT_ON", label: "Chute no gol", tone: "hot" },
+  { kind: "CORNER", label: "Escanteio" },
 ];
+
+/**
+ * Zona do toque, do ponto de vista de quem ataca (mandante ataca para a direita):
+ * campo de defesa/meio = posse; campo de ataque = ataque; perto da área = ataque perigoso.
+ */
+export function zoneKind(x: number, y: number, attacksRight: boolean): PlayKind {
+  const ax = attacksRight ? x : 1000 - x;
+  const nearBox = ax >= 780 || (ax >= 720 && y > 150 && y < 450);
+  if (nearBox) return "DANGER";
+  if (ax >= 520) return "ATTACK";
+  return "POSSESSION";
+}
 
 /**
  * Painel do olheiro: toque no campo onde está a bola, escolha o time e o lance.
@@ -32,26 +41,32 @@ export function ScoutPanel({ matchId, futsal, live, finished = false, home, away
   const [log, setLog] = useState<{ id: string; text: string }[]>([]);
   const svgRef = useRef<SVGSVGElement>(null);
 
+  // Toque no campo = a bola vai para lá no site, já com o tipo de lance pela zona.
   function tap(e: React.PointerEvent<SVGSVGElement>) {
     const r = svgRef.current!.getBoundingClientRect();
     const x = Math.round(Math.max(0, Math.min(1000, ((e.clientX - r.left) / r.width) * 1000)));
     const y = Math.round(Math.max(0, Math.min(600, ((e.clientY - r.top) / r.height) * 600)));
     setPos({ x, y });
-    // Campo do adversário sugere quem ataca: o mandante ataca para a direita.
+    if (!live) return;
+    emit(zoneKind(x, y, team === home.id), x, y);
   }
 
-  function send(kind: PlayKind) {
-    // Escanteio e tiro de meta vão para o canto/área certos automaticamente.
-    let { x, y } = pos;
-    const isHome = team === home.id;
-    if (kind === "CORNER") { x = isHome ? 975 : 25; y = y < 300 ? 25 : 575; }
-    if (kind === "GOAL_KICK") { x = isHome ? 80 : 920; y = 300; }
-    if (kind === "THROW_IN") y = y < 300 ? 22 : 578;
-    setPos({ x, y });
+  function emit(kind: PlayKind, x: number, y: number) {
     const id = newOpId();
     void outbox.push({ kind: "play", clientOpId: id, at: stamp(), teamId: team, play: kind, x, y });
-    setLog((l) => [{ id, text: `${PLAY_LABEL[kind]} · ${isHome ? home.name : away.name}` }, ...l].slice(0, 6));
-    if (navigator.vibrate) navigator.vibrate(15);
+    setLog((l) => [{ id, text: `${PLAY_LABEL[kind]} · ${team === home.id ? home.name : away.name}` }, ...l].slice(0, 6));
+    if (navigator.vibrate) navigator.vibrate(12);
+  }
+
+  // Botões: o lance sai de onde a bola está (o site anima o chute dali).
+  function send(kind: PlayKind) {
+    let { x, y } = pos;
+    const attacksRight = team === home.id;
+    if (kind === "CORNER") { x = attacksRight ? 975 : 25; y = y < 300 ? 25 : 575; }
+    if (kind === "GOAL_KICK") { x = attacksRight ? 80 : 920; y = 300; }
+    if (kind === "THROW_IN") y = y < 300 ? 22 : 578;
+    setPos({ x, y });
+    emit(kind, x, y);
   }
 
   const queued = outbox.queued.length;
@@ -67,6 +82,11 @@ export function ScoutPanel({ matchId, futsal, live, finished = false, home, away
       <div className="overflow-hidden rounded-2xl border">
         <svg ref={svgRef} viewBox="0 0 1000 600" className="block w-full cursor-crosshair touch-manipulation" onPointerDown={tap} aria-label="Toque onde está a bola">
           <PitchGround futsal={futsal} id="scout" />
+          {/* Zonas do time com a bola: ataque e ataque perigoso. */}
+          <g opacity=".18" pointerEvents="none">
+            {team === home.id ? (<><rect x="520" y="0" width="260" height="600" fill="#ffd23f" /><rect x="780" y="0" width="220" height="600" fill="#ff4d4d" /></>)
+              : (<><rect x="220" y="0" width="260" height="600" fill="#ffd23f" /><rect x="0" y="0" width="220" height="600" fill="#ff4d4d" /></>)}
+          </g>
           <PitchLines futsal={futsal} />
           {/* Marca onde o olheiro tocou = onde está a bola agora. */}
           <circle cx={pos.x} cy={pos.y} r="20" fill="none" stroke={team === home.id ? "#1ee37b" : "#fff"} strokeWidth="6" />
@@ -75,7 +95,7 @@ export function ScoutPanel({ matchId, futsal, live, finished = false, home, away
           <text x="960" y="60" fill="rgba(255,255,255,.6)" fontSize="28" fontWeight="700" textAnchor="end">{home.name} →</text>
         </svg>
       </div>
-      <p className="text-center text-xs text-muted-foreground">{home.name} ataca para a direita →</p>
+      <p className="text-center text-xs text-muted-foreground">Toque onde a bola está: a zona define sozinha posse, ataque ou ataque perigoso. {home.name} ataca para a direita →</p>
       <div className="grid grid-cols-2 gap-2" role="group" aria-label="Time com a bola">
         {[home, away].map((t) => (
           <button key={t.id} type="button" aria-pressed={team === t.id} onClick={() => setTeam(t.id)}
@@ -84,6 +104,7 @@ export function ScoutPanel({ matchId, futsal, live, finished = false, home, away
           </button>
         ))}
       </div>
+      <p className="text-center text-[11px] text-muted-foreground"><span className="text-brand-amber">■</span> ataque · <span className="text-brand-live">■</span> ataque perigoso</p>
       <div className="grid grid-cols-3 gap-2">
         {ACTIONS.map((a) => (
           <button key={a.kind} type="button" disabled={!live} onClick={() => send(a.kind)}

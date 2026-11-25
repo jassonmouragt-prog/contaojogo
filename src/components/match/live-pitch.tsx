@@ -69,6 +69,7 @@ export function LivePitch({ futsal, live, finished = false, home, away, score, p
   const tailRef = useRef<SVGPathElement>(null);
   const pos = useRef({ x: 500, y: 300 });
   const anim = useRef(0);
+  const pending = useRef<(() => void) | null>(null);
   const seenPlays = useRef(new Set(initialPlays.map((p) => p.id)));
   const seenEvents = useRef(new Set(events.map((e) => e.id)));
   const queue = useRef<Play[]>([]);
@@ -98,6 +99,9 @@ export function LivePitch({ futsal, live, finished = false, home, away, score, p
       const fx = pos.current.x, fy = pos.current.y;
       const dist = Math.hypot(x - fx, y - fy);
       cancelAnimationFrame(anim.current);
+      // Animação interrompida (ex.: gol no meio de um lance): libera quem esperava por ela.
+      pending.current?.();
+      pending.current = resolve;
       if (dist < 2) { pos.current = { x, y }; draw(x, y, 0); resolve(); return; }
       // Devagar o suficiente para o torcedor acompanhar.
       const dur = opts.dur ?? Math.min(2600, 900 + dist * 2);
@@ -124,6 +128,7 @@ export function LivePitch({ futsal, live, finished = false, home, away, score, p
           if (u < 1) requestAnimationFrame(fade); else tr.setAttribute("d", "");
         };
         requestAnimationFrame(fade);
+        pending.current = null;
         resolve();
       };
       anim.current = requestAnimationFrame(frame);
@@ -137,8 +142,18 @@ export function LivePitch({ futsal, live, finished = false, home, away, score, p
     setZone(p.kind === "DANGER" || p.kind === "SHOT_ON" || p.kind === "CORNER" || (p.kind === "ATTACK" && attackZone) ? (isHome ? "home" : "away") : null);
     setBanner({ text: PLAY_LABEL[p.kind] ?? p.kind, team: name });
     setOwner(p.teamId);
-    const fast = p.kind === "SHOT" || p.kind === "SHOT_ON";
-    await move(p.x, p.y, color(p.teamId), fast ? { dur: 1100, lift: 30 } : {});
+    if (p.kind === "SHOT" || p.kind === "SHOT_ON") {
+      // Chute sai de onde a bola está: no gol (rede) ou para fora (ao lado da trave).
+      await move(p.x, p.y, color(p.teamId), { dur: 500, lift: 6 });
+      const gx = isHome ? 984 : 16;
+      const post = futsal ? 40 : 45;
+      const ty = p.kind === "SHOT_ON" ? 300 + (Math.random() * 2 - 1) * (post - 12) : (p.y < 300 ? 300 - post - 30 - Math.random() * 50 : 300 + post + 30 + Math.random() * 50);
+      await move(gx, ty, color(p.teamId), { dur: 700, lift: p.kind === "SHOT" ? 45 : 20 });
+      await new Promise((r) => setTimeout(r, 900));
+      if (p.kind === "SHOT_ON") setBanner({ text: "Defesa do goleiro", team: isHome ? away.name : home.name });
+      return;
+    }
+    await move(p.x, p.y, color(p.teamId));
   }
 
   async function drain() {
