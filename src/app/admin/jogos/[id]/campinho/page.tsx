@@ -4,6 +4,8 @@ import { Suspense } from "react";
 import { and, eq } from "drizzle-orm";
 import { ScoutPanel } from "@/components/operator/scout-panel";
 import { getMatch } from "@/domain/competitions/queries";
+import { clockStateOf } from "@/domain/labels";
+import { listMatchRoster } from "@/domain/match/queries";
 import { requirePermission } from "@/lib/auth/session";
 import { getDb } from "@/db";
 import { matches } from "@/db/schema";
@@ -18,13 +20,15 @@ async function Panel({ params }: { params: Promise<{ id: string }> }) {
   if (!owned) notFound();
   const m = await getMatch(id);
   if (!m) notFound();
+  const roster = await listMatchRoster(m.competitionId, [m.homeId, m.awayId]);
   return (
     <>
       <div className="mx-auto mb-3 flex max-w-xl items-center justify-between text-xs text-muted-foreground">
         <span>Olheiro • {m.homeName} x {m.awayName}</span>
         <Link href={`/admin/jogos/${id}`} className="font-semibold hover:text-foreground">Painel do operador →</Link>
       </div>
-      <ScoutPanel matchId={m.id} futsal={m.modality === "FUTSAL"} live={m.status === "LIVE"} finished={m.status === "FINISHED" || m.status === "CONFIRMED" || m.period === "FINISHED"} home={{ id: m.homeId, name: m.homeName }} away={{ id: m.awayId, name: m.awayName }} />
+      <ScoutPanel matchId={m.id} futsal={m.modality === "FUTSAL"} live={m.status === "LIVE"} finished={m.status === "FINISHED" || m.status === "CONFIRMED" || m.period === "FINISHED"} home={{ id: m.homeId, name: m.homeName }} away={{ id: m.awayId, name: m.awayName }}
+        clock={clockStateOf(m)} periodMinutes={m.periodMinutes} roster={roster.map((r) => ({ athleteId: r.athleteId, teamId: r.teamId, name: r.name, nickname: r.nickname }))} />
     </>
   );
 }

@@ -94,6 +94,18 @@ test.describe("futsal, pênaltis e planos", () => {
     await expect(page.getByText("Cronômetro parado")).toBeVisible();
     await expect(page.getByRole("button", { name: /Tempo técnico \(1\/1\)/ }).first()).toBeDisabled();
 
+    // Gols lançados pelo campinho do olheiro valem no placar (1 x 1 mantém o empate)
+    const scout = await page.context().newPage();
+    await scout.goto(`/admin/jogos/${matchId}/campinho`);
+    for (const t of [home, away]) {
+      await scout.getByRole("button", { name: `⚽ Gol ${t}` }).click();
+      await scout.getByRole("button", { name: "Confirmar gol" }).click();
+      await expect(scout.getByText(`⚽ GOL · ${t}`)).toBeVisible();
+    }
+    await expect(scout.getByText(/aguardando envio/)).toHaveCount(0, { timeout: 20_000 });
+    await scout.close();
+    await page.reload();
+
     await page.getByRole("button", { name: "+ AMARELO" }).click();
     await page.getByRole("button", { name: home, exact: true }).click();
     await expect(page.getByLabel("Atleta").locator("option", { hasText: `Ala ${tag}` })).toHaveCount(1);
@@ -114,7 +126,10 @@ test.describe("futsal, pênaltis e planos", () => {
     await ok("Cronômetro atualizado.");
 
     // Empate em mata-mata: súmula exige pênaltis
-    await page.getByRole("button", { name: `Aumentar Finalizações ${home}` }).click();
+    for (const t of [home, away]) {
+      await page.getByRole("button", { name: `Aumentar Finalizações ${t}` }).click();
+      await page.getByRole("button", { name: `Aumentar Chutes no gol ${t}` }).click();
+    }
     await page.getByRole("button", { name: "Salvar estatísticas" }).click();
     await ok(/Estatísticas salvas|sincronizados/);
     await expect(page.getByText(/aguardando envio/)).toHaveCount(0);
@@ -131,6 +146,7 @@ test.describe("futsal, pênaltis e planos", () => {
     await page.getByRole("button", { name: "Encerrar súmula" }).click();
     await ok(/Aguardando conferência/);
     await expect(pub.getByText("Pênaltis: 4 x 1")).toBeVisible({ timeout: 25_000 });
+    await expect(pub.locator("main").getByText(/^1$/).first()).toBeVisible();
     await expect(pub.getByLabel(`Cobranças de ${home}`).locator("li", { hasText: "✓" })).toHaveCount(4);
     await expect(pub.getByText(`1. Fixo ${tag} ✓`).first()).toBeVisible();
   });

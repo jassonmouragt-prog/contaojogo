@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { snapshot, type ClockState } from "@/domain/match/clock";
 import { PLAY_LABEL, PitchGround, PitchLines } from "@/components/match/live-pitch";
 import type { PlayKind } from "@/db/schema/match-ops";
 import { newOpId } from "@/lib/offline/outbox";
@@ -34,7 +35,13 @@ export function zoneKind(x: number, y: number, attacksRight: boolean): PlayKind 
  * Painel do olheiro: toque no campo onde está a bola, escolha o time e o lance.
  * Usa a mesma fila offline do operador (sem sinal, guarda e envia depois).
  */
-export function ScoutPanel({ matchId, futsal, live, finished = false, home, away }: { matchId: string; futsal: boolean; live: boolean; finished?: boolean; home: Team; away: Team }) {
+type Player = { athleteId: string; teamId: string; name: string; nickname: string | null };
+
+export function ScoutPanel({ matchId, futsal, live, finished = false, home, away, clock, periodMinutes, roster }: {
+  matchId: string; futsal: boolean; live: boolean; finished?: boolean; home: Team; away: Team; clock: ClockState; periodMinutes: number; roster: Player[];
+}) {
+  const [goalFor, setGoalFor] = useState<string | null>(null);
+  const [own, setOwn] = useState(false);
   const outbox = useOutbox(matchId);
   const [pos, setPos] = useState({ x: 500, y: 300 });
   const [team, setTeam] = useState(home.id);
@@ -67,6 +74,19 @@ export function ScoutPanel({ matchId, futsal, live, finished = false, home, away
     if (kind === "THROW_IN") y = y < 300 ? 22 : 578;
     setPos({ x, y });
     emit(kind, x, y);
+  }
+
+  // Gol de verdade (vale no placar), com autor opcional; o site faz a animação.
+  // benefited = time que ganha o gol. Gol contra: o lance é do atleta do outro time.
+  function goal(benefited: string, athleteId: string | null, ownGoal: boolean) {
+    const minute = snapshot(clock, stamp(), { periodMinutes, futsal }).minute ?? 0;
+    const teamId = ownGoal ? (benefited === home.id ? away.id : home.id) : benefited;
+    const id = newOpId();
+    void outbox.push({ kind: "event", clientOpId: id, at: stamp(), type: "GOAL", teamId, athleteId, minute, ownGoal, penalty: false });
+    setLog((l) => [{ id, text: `⚽ GOL · ${benefited === home.id ? home.name : away.name}${ownGoal ? " (contra)" : ""}` }, ...l].slice(0, 6));
+    setGoalFor(null); setOwn(false);
+    setPos({ x: 500, y: 300 });
+    if (navigator.vibrate) navigator.vibrate([40, 40, 80]);
   }
 
   const queued = outbox.queued.length;
@@ -113,7 +133,33 @@ export function ScoutPanel({ matchId, futsal, live, finished = false, home, away
           </button>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">Gols, cartões e substituições continuam no painel do operador — o campinho anima esses lances sozinho.</p>
+      <div className="grid grid-cols-2 gap-2">
+        {[home, away].map((t) => (
+          <button key={t.id} type="button" disabled={!live} onClick={() => setGoalFor(t.id)}
+            className="h-14 truncate rounded-xl bg-brand-green px-2 text-base font-black uppercase text-primary-foreground active:scale-95 disabled:opacity-40">⚽ Gol {t.name}</button>
+        ))}
+      </div>
+      {goalFor && (
+        <form className="space-y-2 rounded-xl border-2 border-brand-green bg-card p-3" onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          goal(goalFor, (fd.get("athleteId") as string) || null, own);
+        }}>
+          <p className="font-bold">Gol do {goalFor === home.id ? home.name : away.name}</p>
+          <label className="block text-xs font-semibold text-muted-foreground">Quem fez
+            <select name="athleteId" key={String(own)} className="mt-1 h-11 w-full rounded-lg border bg-background px-2 text-sm">
+              <option value="">Não identificado</option>
+              {roster.filter((r) => (own ? r.teamId !== goalFor : r.teamId === goalFor)).map((r) => <option key={r.athleteId} value={r.athleteId}>{r.nickname ?? r.name}</option>)}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={own} onChange={(e) => setOwn(e.target.checked)} /> Gol contra (atleta do outro time)</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => { setGoalFor(null); setOwn(false); }} className="h-11 rounded-lg border font-semibold">Cancelar</button>
+            <button className="h-11 rounded-lg bg-brand-green font-black text-primary-foreground">Confirmar gol</button>
+          </div>
+        </form>
+      )}
+      <p className="text-xs text-muted-foreground">Cartões e substituições continuam no painel do operador — o campinho anima esses lances sozinho.</p>
       {log.length > 0 && (
         <ul className="divide-y rounded-xl border bg-card text-sm">
           {log.map((l) => <li key={l.id} className="px-4 py-2">{l.text}</li>)}

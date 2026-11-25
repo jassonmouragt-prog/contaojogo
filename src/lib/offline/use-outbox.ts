@@ -15,16 +15,18 @@ export function useOutbox(matchId: string) {
   const [queued, setQueued] = useState<QueuedOp[]>([]);
   const [state, setState] = useState<SyncState>("idle");
   const flushing = useRef(false);
+  const dirty = useRef(false);
 
   const reload = useCallback(async () => setQueued(await listQueued(matchId)), [matchId]);
 
   const flush = useCallback(async () => {
-    if (flushing.current) return;
+    if (flushing.current) { dirty.current = true; return; }
     const pending = await listQueued(matchId);
     if (pending.length === 0) return;
     if (!navigator.onLine) { setState("offline"); return; }
     flushing.current = true;
     setState("syncing");
+    let ok = false;
     try {
       const ops = pending.map((q) => {
         const op: Partial<QueuedOp> = { ...q };
@@ -41,6 +43,7 @@ export function useOutbox(matchId: string) {
       if (applied.length === 1) toast.success(applied[0].message);
       else if (applied.length > 1) toast.success(`${applied.length} lançamentos sincronizados.`);
       setState("idle");
+      ok = true;
       if (applied.length > 0) router.refresh();
     } catch {
       setState(navigator.onLine ? "idle" : "offline"); // sem rede: tenta de novo depois
@@ -48,6 +51,8 @@ export function useOutbox(matchId: string) {
       flushing.current = false;
       await reload();
     }
+    // Lances lançados enquanto enviava: manda em seguida (sem esperar o próximo ciclo).
+    if (ok && dirty.current) { dirty.current = false; setTimeout(() => window.dispatchEvent(new Event(`outbox:${matchId}`)), 0); }
   }, [matchId, reload, router]);
 
   const push = useCallback(async (op: MatchOp) => {
@@ -65,16 +70,18 @@ export function useOutbox(matchId: string) {
     const first = setTimeout(() => void reload().then(flush), 0);
     const online = () => void flush();
     const offline = () => setState("offline");
+    window.addEventListener(`outbox:${matchId}`, online);
     window.addEventListener("online", online);
     window.addEventListener("offline", offline);
     const t = setInterval(() => void flush(), 15_000);
     return () => {
+      window.removeEventListener(`outbox:${matchId}`, online);
       window.removeEventListener("online", online);
       window.removeEventListener("offline", offline);
       clearInterval(t);
       clearTimeout(first);
     };
-  }, [flush, reload]);
+  }, [flush, reload, matchId]);
 
   return { queued, state, push, discard, flush };
 }
