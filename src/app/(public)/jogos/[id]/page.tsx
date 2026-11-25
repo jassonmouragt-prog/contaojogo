@@ -5,6 +5,8 @@ import { Suspense } from "react";
 import { LiveMinute } from "@/components/live/live-minute";
 import { ShootoutBoard } from "@/components/match/shootout-board";
 import { LivePitch } from "@/components/match/live-pitch";
+import { NarrationPlayer } from "@/components/match/narration-player";
+import { realtimeConfigured } from "@/lib/realtime/cloudflare";
 import { listMatchPlays } from "@/domain/match/queries";
 import { FREE_KICK_FROM_FOUL, accumulatedFouls, shootoutState } from "@/domain/match/rules";
 import { LiveRefresher } from "@/components/live/live-refresher";
@@ -89,6 +91,7 @@ async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
           <div><dt className="text-[11px] uppercase text-muted-foreground">{futsal ? "Arbitragem e mesa" : "Arbitragem"}</dt><dd className="font-semibold">{m.refereeName ?? "A definir"}</dd></div>
         </dl>
       </div>
+      {live && realtimeConfigured() && <NarrationPlayer matchId={m.id} initialOn={Boolean(m.narrationSessionId)} />}
       {(live || plays.length > 0) && (
         <LivePitch matchId={m.id} futsal={futsal} live={live}
           home={{ id: m.homeId, name: m.homeName }} away={{ id: m.awayId, name: m.awayName }}

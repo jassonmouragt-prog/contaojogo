@@ -30,7 +30,10 @@ async function Console({ params }: { params: Promise<{ id: string }> }) {
     <>
       <div className="mx-auto mb-3 flex max-w-xl items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>{m.competitionName}{m.venueName ? ` • ${m.venueName}` : ""}</span>
-        <Link href={`/admin/jogos/${m.id}/campinho`} className="rounded-lg border px-3 py-1.5 font-semibold text-foreground hover:bg-muted">Campinho (olheiro) →</Link>
+        <span className="flex gap-2">
+          <Link href={`/admin/jogos/${m.id}/narrar`} className="rounded-lg border px-3 py-1.5 font-semibold text-foreground hover:bg-muted">🎙 Narrar</Link>
+          <Link href={`/admin/jogos/${m.id}/campinho`} className="rounded-lg border px-3 py-1.5 font-semibold text-foreground hover:bg-muted">Campinho (olheiro) →</Link>
+        </span>
       </div>
       <MatchConsole
         matchId={m.id}

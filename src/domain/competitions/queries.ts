@@ -38,6 +38,7 @@ export const matchSelect = {
   intervalMinutes: competitions.intervalMinutes,
   timeoutsPerHalf: competitions.timeoutsPerHalf,
   homePens: matches.homePens,
+  narrationSessionId: matches.narrationSessionId,
   awayPens: matches.awayPens,
   phaseType: competitionPhases.type,
   phaseName: competitionPhases.name,

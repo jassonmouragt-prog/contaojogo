@@ -221,6 +221,9 @@ export const matches = pgTable(
     awayScore: smallint("away_score").notNull().default(0),
     /** Disputa de pênaltis (mata-mata empatado); null = não houve. */
     homePens: smallint("home_pens"),
+    /** Narração ao vivo (Cloudflare Realtime): sessão do narrador enquanto estiver no ar. */
+    narrationSessionId: text("narration_session_id"),
+    narrationStartedAt: timestamp("narration_started_at", { withTimezone: true }),
     awayPens: smallint("away_pens"),
     refereeName: text("referee_name"),
     operatorId: text("operator_id").references(() => user.id, { onDelete: "set null" }),

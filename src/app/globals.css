@@ -147,3 +147,4 @@
 @media (prefers-reduced-motion: reduce) { .hero-progress { animation: none; width: 100%; } }
 @keyframes kickin { from { transform: scale(.3); opacity: 0; } 70% { transform: scale(1.15); } to { transform: scale(1); opacity: 1; } }
 @keyframes goalin { 0% { opacity: 0; } 10%, 80% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes eq { 0%, 100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
