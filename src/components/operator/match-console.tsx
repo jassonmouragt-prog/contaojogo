@@ -299,6 +299,7 @@ function EventSheet({ type, props, defaultMinute, pending, onCancel, onSubmit }:
           <option value="">{type === "GOAL" || type === "PENALTY_MISS" ? "Não identificado" : "Escolha…"}</option>
           {players.map((r) => <option key={r.athleteId} value={r.athleteId}>{label(r)}</option>)}
         </select>
+        {players.length === 0 && <span className="mt-1 block text-xs text-brand-amber">Nenhum atleta no elenco desta equipe. Cadastre em Equipes → atletas: eles entram sozinhos no elenco.</span>}
       </label>
       {type === "SUB" && (
         <label className="block text-xs font-semibold text-muted-foreground">Sai

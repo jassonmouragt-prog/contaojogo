@@ -49,6 +49,13 @@ test.describe("futsal, pênaltis e planos", () => {
       await page.getByRole("button", { name: "Inscrever com elenco" }).click();
       await ok(`${t} inscrita com 1 atleta(s).`);
     }
+    // Atleta cadastrado depois da inscrição entra sozinho no elenco
+    await page.goto("/admin/equipes");
+    await page.getByRole("link", { name: new RegExp(home) }).first().click();
+    await page.getByLabel("Nome do atleta").fill(`Ala ${tag}`);
+    await page.getByRole("button", { name: "Adicionar atleta" }).click();
+    await ok("Atleta cadastrado.");
+
     await page.goto(`${compUrl}?aba=jogos`);
     await page.getByLabel("Mandante").selectOption({ label: home });
     await page.getByLabel("Visitante").selectOption({ label: away });
@@ -83,9 +90,14 @@ test.describe("futsal, pênaltis e planos", () => {
 
     // Tempo técnico: para o cronômetro e só 1 por tempo
     await page.getByRole("button", { name: /Tempo técnico \(0\/1\)/ }).first().click();
-    await ok("Tempo técnico: cronômetro parado.");
+    await expect(page.getByText(/aguardando envio/)).toHaveCount(0, { timeout: 20_000 });
     await expect(page.getByText("Cronômetro parado")).toBeVisible();
     await expect(page.getByRole("button", { name: /Tempo técnico \(1\/1\)/ }).first()).toBeDisabled();
+
+    await page.getByRole("button", { name: "+ AMARELO" }).click();
+    await page.getByRole("button", { name: home, exact: true }).click();
+    await expect(page.getByLabel("Atleta").locator("option", { hasText: `Ala ${tag}` })).toHaveCount(1);
+    await page.getByRole("button", { name: "Cancelar" }).click();
 
     const pub = await page.context().newPage();
     await pub.goto(`/jogos/${matchId}`);

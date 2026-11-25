@@ -1,10 +1,10 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { POSITIONS, athletes, teams, venues } from "@/db/schema";
+import { POSITIONS, athletes, competitionTeams, rosterEntries, teams, venues } from "@/db/schema";
 import { recordAudit } from "@/domain/audit/record";
 import {
   type ActionResult,
@@ -76,6 +76,21 @@ const athleteSchema = z.object({
   keepPhoto: z.string().optional(),
 });
 
+type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+/**
+ * Atleta novo entra sozinho no elenco das competições em que a equipe já está
+ * inscrita — assim aparece na hora de lançar gol, cartão e pênaltis.
+ */
+async function addToEnrolledRosters(tx: Tx, teamId: string, athleteIds: string[]) {
+  if (athleteIds.length === 0) return;
+  const comps = await tx.select({ id: competitionTeams.competitionId }).from(competitionTeams).where(eq(competitionTeams.teamId, teamId));
+  if (comps.length === 0) return;
+  const rows = await tx.select({ id: athletes.id, shirt: athletes.shirtNumber }).from(athletes).where(inArray(athletes.id, athleteIds));
+  await tx.insert(rosterEntries)
+    .values(comps.flatMap((c) => rows.map((a) => ({ competitionId: c.id, teamId, athleteId: a.id, shirtNumber: a.shirt }))))
+    .onConflictDoNothing();
+}
+
 export async function saveAthlete(_p: ActionResult, fd: FormData): Promise<ActionResult> {
   const actor = await authorizeAction("competition.manage");
   const org = requireOrg(actor);
@@ -107,6 +122,7 @@ export async function saveAthlete(_p: ActionResult, fd: FormData): Promise<Actio
       return { ok: true, message: "Atleta atualizado.", id };
     }
     const [row] = await tx.insert(athletes).values({ ...values, organizationId: org }).returning({ id: athletes.id });
+    await addToEnrolledRosters(tx, values.teamId, [row.id]);
     await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "athlete.created", entityType: "athlete", entityId: row.id, after: { name: values.name, teamId: values.teamId }, ipAddress: await clientIp() });
     return { ok: true, message: "Atleta cadastrado.", id: row.id };
   });
@@ -183,7 +199,8 @@ export async function bulkAddAthletes(_p: ActionResult, fd: FormData): Promise<A
   const [team] = await db.select({ id: teams.id }).from(teams).where(and(eq(teams.id, parsed.data.teamId), eq(teams.organizationId, org)));
   if (!team) return fail("Equipe não encontrada.");
   await db.transaction(async (tx) => {
-    await tx.insert(athletes).values(rows.map((r) => ({ ...r, organizationId: org, teamId: team.id })));
+    const created = await tx.insert(athletes).values(rows.map((r) => ({ ...r, organizationId: org, teamId: team.id }))).returning({ id: athletes.id });
+    await addToEnrolledRosters(tx, team.id, created.map((c) => c.id));
     await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "athlete.created", entityType: "team", entityId: team.id, after: { quantidade: rows.length } });
   });
   revalidatePath(`/admin/equipes/${team.id}`);
