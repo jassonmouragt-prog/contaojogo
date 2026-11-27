@@ -17,6 +17,8 @@ function createAuth() {
   return betterAuth({
     appName: "Conta o Jogo",
     baseURL: env.BETTER_AUTH_URL,
+    // Domínio próprio e o endereço do Vercel funcionam durante a troca de domínio.
+    trustedOrigins: ["https://contaojogo.club", "https://www.contaojogo.club", "https://contaojogo.vercel.app"],
     secret: env.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, {
       provider: "pg",
