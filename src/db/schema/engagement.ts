@@ -133,6 +133,8 @@ export const heroSlides = pgTable("hero_slides", {
   title: text("title").notNull(),
   subtitle: text("subtitle"),
   imageUrl: text("image_url").notNull(),
+  /** Arte própria para celular (opcional); sem ela, o celular recorta a imagem principal. */
+  mobileImageUrl: text("mobile_image_url"),
   linkUrl: text("link_url"),
   ctaLabel: text("cta_label"),
   durationSeconds: smallint("duration_seconds").notNull().default(6),

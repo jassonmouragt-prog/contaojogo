@@ -42,7 +42,7 @@ async function Hero() {
   const ordered = [...todayMatches].sort((a, b) => (a.status === "live" ? -1 : 0) - (b.status === "live" ? -1 : 0));
 
   const admin: HeroSlide[] = slides.map((s) => ({
-    id: s.id, kind: s.kind === "SPONSOR" ? "SPONSOR" : "HIGHLIGHT", title: s.title, subtitle: s.subtitle, imageUrl: s.imageUrl,
+    id: s.id, kind: s.kind === "SPONSOR" ? "SPONSOR" : "HIGHLIGHT", title: s.title, subtitle: s.subtitle, imageUrl: s.imageUrl, mobileImageUrl: s.mobileImageUrl,
     href: s.linkUrl ? `/api/hero/${s.id}/click` : null,
     // Banner "só imagem" (texto já na arte): sem botão automático.
     cta: s.linkUrl && (s.title || s.ctaLabel) ? s.ctaLabel ?? (s.kind === "SPONSOR" ? "Conheça" : "Ver mais") : null,

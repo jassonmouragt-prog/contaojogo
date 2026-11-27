@@ -85,7 +85,7 @@ test.describe("Fase 8 — engajamento, patrocínio, conteúdo e suporte", () => 
     await page.goto("/admin/banners");
     await page.getByRole("button", { name: "Novo banner" }).click();
     await page.getByLabel("Título (opcional)", { exact: true }).fill(`Final ${tag}`);
-    await page.locator('input[type="file"]').setInputFiles({ name: "banner.jpg", mimeType: "image/jpeg", buffer: photo });
+    await page.locator('input[type="file"]').first().setInputFiles({ name: "banner.jpg", mimeType: "image/jpeg", buffer: photo });
     await expect(page.getByText(/Imagem otimizada: .* • 1620×1080/).first()).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: "Publicar banner" }).click();
     await expect(page.getByText("Banner publicado.").first()).toBeVisible();

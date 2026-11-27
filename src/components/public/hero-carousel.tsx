@@ -10,7 +10,7 @@ import { LiveMinute } from "@/components/live/live-minute";
 import { cn } from "@/lib/utils";
 
 export type HeroSlide =
-  | { id: string; kind: "SPONSOR" | "HIGHLIGHT"; title: string; subtitle: string | null; imageUrl: string; href: string | null; cta: string | null; duration: number; sponsorId: string | null; sponsorName?: string | null }
+  | { id: string; kind: "SPONSOR" | "HIGHLIGHT"; title: string; subtitle: string | null; imageUrl: string; mobileImageUrl?: string | null; href: string | null; cta: string | null; duration: number; sponsorId: string | null; sponsorName?: string | null }
   | { id: "today"; kind: "TODAY"; matches: MatchRowData[]; total: number; live: number; duration: number }
   | { id: "brand"; kind: "BRAND"; duration: number };
 
@@ -78,15 +78,26 @@ export function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
   );
 }
 
+/** Imagem do banner com versão própria para celular, quando houver. */
+function Art({ s, alt }: { s: Extract<HeroSlide, { imageUrl: string }>; alt: string }) {
+  return (
+    <picture>
+      {s.mobileImageUrl && <source media="(max-width: 639px)" srcSet={s.mobileImageUrl} />}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={s.imageUrl} alt={alt} className="absolute inset-0 size-full object-cover" />
+    </picture>
+  );
+}
+
 function SlideView({ s }: { s: HeroSlide }) {
   if (s.kind === "TODAY") return <TodaySlide s={s} />;
   if (s.kind === "BRAND") return <BrandSlide />;
   const textless = !s.title && !s.subtitle && !s.cta;
   const body = textless ? (
-    <img src={s.imageUrl} alt={s.sponsorName ?? "Destaque"} className="absolute inset-0 size-full object-cover" />
+    <Art s={s} alt={s.sponsorName ?? "Destaque"} />
   ) : (
     <>
-      <img src={s.imageUrl} alt="" className="absolute inset-0 size-full object-cover" />
+      <Art s={s} alt="" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent sm:bg-gradient-to-r sm:from-black/85 sm:via-black/40" />
       <div className="absolute inset-x-0 bottom-0 z-10 space-y-2 p-5 sm:max-w-xl sm:p-8">
         <span className={cn("inline-block rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest", s.kind === "SPONSOR" ? "bg-white text-black" : "bg-brand-green text-primary-foreground")}>

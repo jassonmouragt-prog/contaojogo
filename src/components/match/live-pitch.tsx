@@ -61,9 +61,10 @@ export function PitchGround({ futsal, id }: { futsal: boolean; id: string }) {
  * área de ataque, rastro na cor do time). Formato 2: sem olheiro, anima os
  * lances do operador (gol para o lado certo, cartões).
  */
-export function LivePitch({ futsal, live, finished = false, home, away, score, plays: initialPlays, events, matchId }: {
-  futsal: boolean; live: boolean; finished?: boolean; home: Team; away: Team; score: [number, number]; plays: Play[]; events: Ev[]; matchId?: string;
+export function LivePitch({ futsal, live, finished = false, shootout = false, home, away, score, plays: initialPlays, events, matchId }: {
+  futsal: boolean; live: boolean; finished?: boolean; shootout?: boolean; home: Team; away: Team; score: [number, number]; plays: Play[]; events: Ev[]; matchId?: string;
 }) {
+  const spot = { x: futsal ? 830 : 865, y: 300 };
   const ballRef = useRef<SVGGElement>(null);
   const shadowRef = useRef<SVGEllipseElement>(null);
   const tailRef = useRef<SVGPathElement>(null);
@@ -77,6 +78,7 @@ export function LivePitch({ futsal, live, finished = false, home, away, score, p
   const [banner, setBanner] = useState<{ text: string; team?: string } | null>(() => {
     const last = initialPlays.at(-1);
     if (finished || !live) return { text: "Fim de jogo" };
+    if (shootout) return { text: "Disputa de pênaltis" };
     return last ? { text: PLAY_LABEL[last.kind] ?? "", team: last.teamId === home.id ? home.name : away.name } : { text: "Bola rolando" };
   });
   const [owner, setOwner] = useState<string | null>(initialPlays.at(-1)?.teamId ?? null);
@@ -171,14 +173,28 @@ export function LivePitch({ futsal, live, finished = false, home, away, score, p
   // Posição inicial: último lance conhecido.
   useEffect(() => {
     const last = initialPlays.at(-1);
-    if (last) { pos.current = { x: last.x, y: last.y }; }
+    if (shootout) pos.current = { ...spot };
+    else if (last) { pos.current = { x: last.x, y: last.y }; }
     draw(pos.current.x, pos.current.y, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Começou a disputa de pênaltis: limpa o último lance e põe a bola na marca.
+  useEffect(() => {
+    if (!shootout || finished) return;
+    queue.current = [];
+    const t = setTimeout(() => {
+      setZone(null); setOwner(null);
+      setBanner({ text: "Disputa de pênaltis" });
+      void move(spot.x, spot.y, "#ffffff", { dur: 1200, lift: 20 });
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shootout, finished]);
+
   // Busca lances novos do olheiro a cada 2s (só com o jogo ao vivo e a aba visível).
   useEffect(() => {
-    if (!live || !matchId) return;
+    if (!live || !matchId || shootout) return;
     let stop = false;
     const tick = async () => {
       if (document.visibilityState !== "visible") return;
@@ -194,7 +210,7 @@ export function LivePitch({ futsal, live, finished = false, home, away, score, p
     const t = setInterval(tick, 2000);
     return () => { stop = true; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, matchId]);
+  }, [live, matchId, shootout]);
 
   // Gols e cartões novos (chegam pela atualização da página).
   useEffect(() => {
@@ -203,6 +219,19 @@ export function LivePitch({ futsal, live, finished = false, home, away, score, p
     for (const e of fresh) {
       const scorerHome = e.ownGoal ? e.teamId !== home.id : e.teamId === home.id;
       const name = e.teamId === home.id ? home.name : away.name;
+      if (e.type === "SHOOTOUT_GOAL" || e.type === "SHOOTOUT_MISS") {
+        const conv = e.type === "SHOOTOUT_GOAL";
+        const who = e.athleteName ? `${e.athleteName} (${name})` : name;
+        setBanner({ text: conv ? "Pênalti convertido" : "Pênalti perdido", team: who });
+        setOwner(e.teamId);
+        const post = futsal ? 40 : 45;
+        const ty = conv ? 300 + (Math.random() * 2 - 1) * (post - 12) : (Math.random() < 0.5 ? 300 - post - 25 : 300 + post + 25);
+        void move(spot.x, spot.y, "#ffffff", { dur: 300, lift: 0 })
+          .then(() => move(984, ty, color(e.teamId), { dur: 550, lift: conv ? 14 : 30 }))
+          .then(() => new Promise((r) => setTimeout(r, 1800)))
+          .then(() => { setBanner({ text: "Disputa de pênaltis" }); setOwner(null); return move(spot.x, spot.y, "#ffffff", { dur: 900, lift: 10 }); });
+        continue;
+      }
       if (e.type === "GOAL") {
         const team = scorerHome ? home : away;
         setZone(null);

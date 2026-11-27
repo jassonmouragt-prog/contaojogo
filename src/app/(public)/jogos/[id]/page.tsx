@@ -98,7 +98,8 @@ async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
           score={[m.homeScore, m.awayScore]}
           plays={plays.map((p) => ({ id: p.id, teamId: p.teamId, kind: p.kind, x: p.x, y: p.y }))}
           finished={m.status === "FINISHED" || m.status === "CONFIRMED"}
-          events={valid.filter((e) => e.type === "GOAL" || e.type === "YELLOW" || e.type === "RED").map((e) => ({ id: e.id, type: e.type, teamId: e.teamId, minute: e.minute, ownGoal: !!e.detail.ownGoal, athleteName: e.athleteName }))} />
+          shootout={m.period === "FINISHED" && (hasShootout || (m.phaseType === "KNOCKOUT" && m.homeScore === m.awayScore))}
+          events={valid.filter((e) => e.type === "GOAL" || e.type === "YELLOW" || e.type === "RED" || e.type.startsWith("SHOOTOUT")).map((e) => ({ id: e.id, type: e.type, teamId: e.teamId, minute: e.minute, ownGoal: !!e.detail.ownGoal, athleteName: e.athleteName }))} />
       )}
       {hasShootout && (
         <section className="space-y-3 rounded-2xl border bg-card p-5">

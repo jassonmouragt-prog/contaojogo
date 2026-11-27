@@ -1,4 +1,5 @@
 import { expect as baseExpect, test } from "@playwright/test";
+import sharp from "sharp";
 
 const expect = baseExpect.configure({ timeout: 15_000 });
 
@@ -106,6 +107,20 @@ test.describe("futsal, pênaltis e planos", () => {
     await scout.close();
     await page.reload();
 
+    // Cadastro rápido na hora do jogo (fica no time)
+    await page.getByRole("button", { name: /Cadastrar jogador na hora/ }).click();
+    await page.getByRole("button", { name: away, exact: true }).first().click();
+    await page.getByLabel("Nome do jogador").fill(`Pivô ${tag}`);
+    await page.getByLabel("Número").fill("9");
+    await page.getByLabel("Posição (opcional)").selectOption({ label: "Atacante" });
+    await page.getByRole("button", { name: "Cadastrar jogador", exact: true }).click();
+    await ok(`Pivô ${tag} cadastrado no time.`);
+    await page.getByRole("button", { name: "+ AMARELO" }).click();
+    await page.getByRole("button", { name: away, exact: true }).last().click();
+    await expect(page.getByLabel("Atleta").locator("option", { hasText: `Pivô ${tag}` })).toHaveCount(1);
+    await page.getByRole("button", { name: "Cancelar" }).click();
+    await page.getByRole("button", { name: /Cadastrar jogador na hora/ }).click(); // fecha o painel
+
     await page.getByRole("button", { name: "+ AMARELO" }).click();
     await page.getByRole("button", { name: home, exact: true }).click();
     await expect(page.getByLabel("Atleta").locator("option", { hasText: `Ala ${tag}` })).toHaveCount(1);
@@ -136,6 +151,7 @@ test.describe("futsal, pênaltis e planos", () => {
     await page.getByRole("button", { name: "Encerrar súmula" }).click();
     await ok(/registre a disputa de pênaltis/);
 
+    await expect(pub.getByLabel("Campinho ao vivo").getByText("Disputa de pênaltis")).toBeVisible({ timeout: 25_000 });
     const board = page.locator("section", { hasText: "Disputa de pênaltis" });
     await board.getByLabel(`Cobrador ${home}`).selectOption({ label: `Fixo ${tag}` });
     const [hGoal, aGoal] = [board.getByRole("button", { name: "✓ Converteu" }).first(), board.getByRole("button", { name: "✓ Converteu" }).last()];
@@ -201,5 +217,44 @@ test.describe("futsal, pênaltis e planos", () => {
     await c.goto("/admin/banners");
     await expect(c.getByText("Sem permissão").first()).toBeVisible();
     await anon.close();
+  });
+
+  test("banner com versão de celular: editar e excluir", async ({ page }) => {
+    test.setTimeout(120_000);
+    const tag = Date.now().toString(36).slice(-5).toUpperCase();
+    const img = (w: number, h: number, c: string) => sharp({ create: { width: w, height: h, channels: 3, background: c } }).png().toBuffer();
+    await page.goto("/entrar?next=/admin/banners");
+    await page.getByLabel("E-mail").fill(process.env.E2E_OWNER_EMAIL!);
+    await page.getByLabel("Senha").fill(process.env.E2E_OWNER_PASSWORD!);
+    await page.getByRole("button", { name: "Entrar" }).click();
+    await page.waitForURL((u) => u.pathname === "/admin/banners");
+    await page.getByRole("button", { name: "Novo banner" }).click();
+    await page.getByLabel("Título (opcional)", { exact: true }).fill(`Banner ${tag}`);
+    const files = page.locator('input[type="file"]');
+    await files.nth(0).setInputFiles({ name: "pc.png", mimeType: "image/png", buffer: await img(2400, 730, "#114422") });
+    await expect(page.getByText(/otimizada:/i).first()).toBeVisible({ timeout: 30_000 });
+    await files.nth(1).setInputFiles({ name: "cel.png", mimeType: "image/png", buffer: await img(1080, 660, "#442211") });
+    await expect(page.getByText(/otimizada:/i).nth(1)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: "Publicar banner" }).click();
+    await expect(page.getByText("Banner publicado.").first()).toBeVisible();
+    const row = page.locator("li", { hasText: `Banner ${tag}` });
+    await expect(row).toContainText("com versão celular");
+
+    await row.getByRole("button", { name: "Editar" }).click();
+    await row.getByLabel("Título (opcional)", { exact: true }).fill(`Banner ${tag} editado`);
+    await row.getByRole("button", { name: "Salvar alterações" }).click();
+    await expect(page.getByText("Banner salvo.").first()).toBeVisible();
+    const edited = page.locator("li", { hasText: `Banner ${tag} editado` });
+    await expect(edited).toContainText("com versão celular"); // imagens mantidas
+
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.goto("/");
+    expect(await page.content()).toMatch(/mobileImageUrl\\?":\\?"\/api\/media\//);
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    await page.goto("/admin/banners");
+    await page.locator("li", { hasText: `Banner ${tag} editado` }).getByRole("button", { name: "Excluir" }).click();
+    await page.getByRole("button", { name: "Confirmar exclusão" }).click();
+    await expect(page.locator("li", { hasText: `Banner ${tag}` })).toHaveCount(0);
   });
 });

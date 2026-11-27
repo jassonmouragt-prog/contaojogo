@@ -234,6 +234,7 @@ const heroSchema = z.object({
   title: z.string().max(90).optional(),
   subtitle: z.string().max(160).optional(),
   imageUrl: imageRef,
+  mobileImageUrl: imageRef.optional(),
   linkUrl: z.string().max(500).optional(),
   ctaLabel: z.string().max(30).optional(),
   durationSeconds: z.coerce.number().int().min(3).max(30).default(6),
@@ -251,7 +252,8 @@ function safeLink(v?: string): string | null | false {
 export async function createHeroSlide(_p: ActionResult, fd: FormData): Promise<ActionResult> {
   const actor = await authorizeAction("content.manage");
   const org = requireOrg(actor);
-  const parsed = heroSchema.safeParse(formObject(fd));
+  const raw = formObject(fd);
+  const parsed = heroSchema.safeParse({ ...raw, mobileImageUrl: raw.mobileImageUrl || undefined });
   if (!parsed.success) return fail(firstIssue(parsed.error));
   const d = parsed.data;
   const link = safeLink(d.linkUrl);
@@ -265,13 +267,63 @@ export async function createHeroSlide(_p: ActionResult, fd: FormData): Promise<A
     const [{ next }] = await tx.select({ next: sql<number>`coalesce(max(${heroSlides.sortOrder}),0)+1` }).from(heroSlides).where(eq(heroSlides.organizationId, org));
     const [row] = await tx.insert(heroSlides).values({
       organizationId: org, kind: d.kind, sponsorId: d.kind === "SPONSOR" ? d.sponsorId! : null, title: d.title ?? "", subtitle: d.subtitle ?? null,
-      imageUrl: d.imageUrl, linkUrl: link, ctaLabel: d.ctaLabel ?? null, durationSeconds: d.durationSeconds, startsAt: d.startsAt, endsAt: d.endsAt, sortOrder: next,
+      imageUrl: d.imageUrl, mobileImageUrl: d.mobileImageUrl ?? null, linkUrl: link, ctaLabel: d.ctaLabel ?? null, durationSeconds: d.durationSeconds, startsAt: d.startsAt, endsAt: d.endsAt, sortOrder: next,
     }).returning({ id: heroSlides.id });
     await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "hero.created", entityType: "hero", entityId: row.id, after: { title: d.title ?? "(só imagem)", kind: d.kind } });
   });
   revalidatePath("/admin/banners");
   revalidatePath("/");
   return { ok: true, message: "Banner publicado." };
+}
+
+/** Edita um banner já enviado. Sem imagem nova, mantém a atual. */
+export async function editHeroSlide(_p: ActionResult, fd: FormData): Promise<ActionResult> {
+  const actor = await authorizeAction("content.manage");
+  const org = requireOrg(actor);
+  const raw = formObject(fd);
+  const id = z.uuid().safeParse(raw.id);
+  if (!id.success) return fail("Banner inválido.");
+  const parsed = heroSchema.extend({ imageUrl: imageRef.optional() }).safeParse({ ...raw, imageUrl: raw.imageUrl || undefined, mobileImageUrl: raw.mobileImageUrl || undefined });
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  const d = parsed.data;
+  const link = safeLink(d.linkUrl);
+  if (link === false) return fail("Link deve começar com / ou https://");
+  if (d.kind === "SPONSOR" && !d.sponsorId) return fail("Escolha o patrocinador do anúncio.");
+  const res = await getDb().transaction(async (tx) => {
+    if (d.sponsorId) {
+      const [s] = await tx.select({ id: sponsors.id }).from(sponsors).where(and(eq(sponsors.id, d.sponsorId), eq(sponsors.organizationId, org)));
+      if (!s) return fail("Patrocinador inválido.");
+    }
+    const [row] = await tx.update(heroSlides).set({
+      kind: d.kind, sponsorId: d.kind === "SPONSOR" ? d.sponsorId! : null, title: d.title ?? "", subtitle: d.subtitle ?? null,
+      linkUrl: link, ctaLabel: d.ctaLabel ?? null, durationSeconds: d.durationSeconds, startsAt: d.startsAt, endsAt: d.endsAt,
+      ...(d.imageUrl ? { imageUrl: d.imageUrl } : {}),
+      ...(raw.removeMobile === "on" ? { mobileImageUrl: null } : d.mobileImageUrl ? { mobileImageUrl: d.mobileImageUrl } : {}),
+    }).where(and(eq(heroSlides.id, id.data), eq(heroSlides.organizationId, org))).returning({ id: heroSlides.id });
+    if (!row) return fail("Banner não encontrado.");
+    await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "hero.edited", entityType: "hero", entityId: row.id, after: { title: d.title ?? "" } });
+    return { ok: true, message: "Banner salvo." } as ActionResult;
+  });
+  revalidatePath("/admin/banners");
+  revalidatePath("/");
+  return res;
+}
+
+/** Exclui o banner de vez (sai do site e da lista). */
+export async function deleteHeroSlide(_p: ActionResult, fd: FormData): Promise<ActionResult> {
+  const actor = await authorizeAction("content.manage");
+  const org = requireOrg(actor);
+  const id = z.uuid().safeParse(fd.get("id"));
+  if (!id.success) return fail("Banner inválido.");
+  const res = await getDb().transaction(async (tx) => {
+    const [row] = await tx.delete(heroSlides).where(and(eq(heroSlides.id, id.data), eq(heroSlides.organizationId, org))).returning({ id: heroSlides.id, title: heroSlides.title });
+    if (!row) return fail("Banner não encontrado.");
+    await recordAudit(tx, { organizationId: org, actorUserId: actor.id, action: "hero.deleted", entityType: "hero", entityId: row.id, before: { title: row.title } });
+    return { ok: true, message: "Banner excluído." } as ActionResult;
+  });
+  revalidatePath("/admin/banners");
+  revalidatePath("/");
+  return res;
 }
 
 export async function updateHeroSlide(_p: ActionResult, fd: FormData): Promise<ActionResult> {

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ShootoutBoard } from "@/components/match/shootout-board";
+import { QuickPlayer } from "@/components/operator/quick-player";
 import { StatusPill } from "@/components/brand/status-pill";
 import { confirmMatch, finishMatch } from "@/domain/match/actions";
 import { FREE_KICK_FROM_FOUL, accumulatedFouls, computeScore, shootoutState, timeoutsUsed } from "@/domain/match/rules";
@@ -172,6 +173,11 @@ export function MatchConsole(props: ConsoleProps) {
           <button onClick={() => setSheet("SUB")} className="h-14 rounded-xl border border-brand-blue text-base font-extrabold text-brand-blue">+ SUBSTITUIÇÃO</button>
           <button onClick={() => setSheet("PENALTY_MISS")} className="col-span-2 h-12 rounded-xl border text-sm font-bold">+ Pênalti perdido</button>
         </div>
+      )}
+
+      {status !== "CONFIRMED" && (
+        <QuickPlayer matchId={props.matchId} home={props.home} away={props.away}
+          counts={{ [props.home.id]: props.roster.filter((r) => r.teamId === props.home.id).length, [props.away.id]: props.roster.filter((r) => r.teamId === props.away.id).length }} />
       )}
 
       {futsal && live && inPlay && (
